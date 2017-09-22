@@ -29,7 +29,7 @@ while True:
 		if socket == client_socket:
 			server_message, server_address = socket.recvfrom(rec_msg_buffer_size)
 			if not server_message:
-				print 'disconnected from server'
+				print ('disconnected from server')
 				#sys.exit()
 			else:
 				sys.stdout.write('\n'); sys.stdout.flush()
@@ -50,6 +50,6 @@ while True:
 				else:
 					sys.stdout.write('[Me:] '); sys.stdout.flush()
 			except:
-				print 'The message could not be sent. The socket will close. Type <q> to exit the application'
+				print ('The message could not be sent. The socket will close. Type <q> to exit the application')
 				client_socket.sendto('#q', (UDP_IP, UDP_PORT))
 				client_socket.close()
