@@ -18,6 +18,7 @@ message_buffer_size = 2048
 server_client = UDPServerModel('127.0.0.1', int (sys.argv[1]))
 #open server socket
 server_client.openSocket()
+print('Server is starting up on %s port %s' % (server_client.ip, server_client.port))
 
 #create server instance to handle communication with other servers
 server_server = UDPServerModel('127.0.0.1', int (sys.argv[2]))
@@ -73,7 +74,7 @@ def multicastMessagetoClients(this_client, message_type):
 	#multicast the message
 	for client in list_of_clients:
 		if client != this_client:
-			server_client.socket.sendto(this_client.message, client.address)	
+			server_client.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, message_type, multicast_message), client.address)
 
 while True:
 	#communicate with clients and servers using different sockets
@@ -89,9 +90,10 @@ while True:
 			#Recvfrom takes as input message buffer size = the maximum length for the received message
 			#it outputs a pair: first is the data = the message; the second is the client's socket address
 			temp_client = ClientModel(None, None)
-			temp_client.message, temp_client.address = server_client.socket.recvfrom(message_buffer_size)
+			received_message, temp_client.address = server_client.socket.recvfrom(message_buffer_size)
 			#extract data from packet
-			sender_id, sender_type, message_type, message_content = MessageUtil.extractMessage(temp_client.message)
+			sender_id, sender_type, message_type, message_content = MessageUtil.extractMessage(received_message)
+			temp_client.message = message_content
 
 			#new a client has requested to join the conversation
 			if (sender_type == SenderType.CLIENT):
@@ -113,7 +115,7 @@ while True:
 						# if he exited, the client application sends a 'quit' message. 
 						if (message_type == MessageType.LEFTROOM):
 							#notify the other clients
-							multicastMessagetoClients(existing_client, MessageType.LEFTROOM)
+							multicastMessagetoClients(temp_client, MessageType.LEFTROOM)
 							#Remove this client from the list of clients
 							list_of_clients = disconnectClient(list_of_clients, temp_client)
 							#show results on server side
