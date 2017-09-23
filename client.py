@@ -37,11 +37,12 @@ while True:
 				print ('disconnected from server')
 				#sys.exit()
 			else:
+				sys.stdout.write('\n')
 				if (sender_type == SenderType.SERVER):
 					sys.stdout.write("%s \n"%(message_content))
 				else:
 					sys.stdout.write("[%s] %s"%(sender_id, message_content))
-				sys.stdout.write('[Me] '); sys.stdout.flush()
+				sys.stdout.write('[Me:] '); sys.stdout.flush()
 		#stdin has data => user wrote a message
 		else:
 			#send message to server. Even if #q is typed, firstly inform the server
