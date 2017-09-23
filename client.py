@@ -38,7 +38,7 @@ while True:
 				#sys.exit()
 			else:
 				sys.stdout.write('\n')
-				if (sender_type == SenderType.SERVER):
+				if (sender_type == SenderType.SERVER and message_type != MessageContent.QUIT):
 					sys.stdout.write("%s \n"%(message_content))
 				else:
 					sys.stdout.write("[%s] %s"%(sender_id, message_content))
@@ -48,15 +48,16 @@ while True:
 			#send message to server. Even if #q is typed, firstly inform the server
 			try:
 				client_message = sys.stdin.readline()
-				if (client_message.strip() == MessageContent.QUIT):
-					client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.LEFTROOM, client_message), (UDP_IP, UDP_PORT))
-					#client_socket.close()
-					sys.exit();
-				else:
-					client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.NORMALCHAT, client_message), (UDP_IP, UDP_PORT))
-					sys.stdout.write('[Me:] ');
-					sys.stdout.flush()
+				if client_message:
+					if (client_message.strip() == MessageContent.QUIT):
+						client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.LEFTROOM, client_message), (UDP_IP, UDP_PORT))
+						client_socket.close()
+						sys.exit();
+					else:
+						client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.NORMALCHAT, client_message), (UDP_IP, UDP_PORT))
+						sys.stdout.write('[Me:] ');
+						sys.stdout.flush()
 			except:
-				print ('The message could not be sent. The socket will close. Type <q> to exit the application')
+				print ('The message could not be sent. The socket will close. Type <~q> to exit the application')
 				client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.LEFTROOM, client_message), (UDP_IP, UDP_PORT))
 				client_socket.close()

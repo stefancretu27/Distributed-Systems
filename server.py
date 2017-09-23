@@ -5,136 +5,128 @@ import sys
 # It uses UNIX file descriptors, as I/O operations are done by opening, reading from/ writing to and close file which has an unique ID (file descriptor).
 #import socket package
 import socket
-import time
+import unicodedata
 #import classes
-from ClientModel import ClientModel
 from UDPServerModel import UDPServerModel
+from ClientModel import ClientModel
 from MessageUtil import MessageUtil
 from Enum import MessageType,SenderType
 
 #set message buffer size
 message_buffer_size = 2048
+default_server_port = 5005
+
 #create server instance to handle communication with clients
-server_client = UDPServerModel('127.0.0.1', int (sys.argv[1]))
+this_server = UDPServerModel('127.0.0.1', int (sys.argv[1]), int (sys.argv[2]))
 #open server socket
-server_client.openSocket()
-print('Server is starting up on %s port %s' % (server_client.ip, server_client.port))
+this_server.openSocket()
 
-#create server instance to handle communication with other servers
-server_server = UDPServerModel('127.0.0.1', int (sys.argv[2]))
-#open server socket
-server_server.openSocket()
+#inform the admin that this server is up
+print('Server is starting up on %s port %s' % (this_server.ip, this_server.port))
+#if not default server, inform the default server about its existence
+if this_server.default == 0:
+	#create a server instance for the default one
+	default_server = UDPServerModel('127.0.0.1', default_server_port, True)
 
-#store all connected clients in a global list	
-list_of_clients = list()
+	#send message with this server's id, specifying that comes from a server entity, that the server is up and giving the port as message
+	this_server.socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SERVERUP, ""), default_server.getAddress())
 
-#list of clients related operations
-#for various reasons a client will disconnect => update the list of clients
-def disconnectClient(client_list, this_client):
-	if client_list:
-		return [client for client in client_list if client != this_client]
-	else:
-		return []
-
-#display the port and ip of all clients
-def showConnectedClients():
-	if list_of_clients:
-		for client in list_of_clients:
-			print (client.address)
-	else:
-		print ('No clients are currently connected to this server:', server_client.ip)
-
-#search if a client is connected	
-def isClientInList(this_client):
-	for client in list_of_clients:
-		if client == this_client:			
-			return True
-	return False
+	#append default server to server list as it shall be the 1st
+	this_server.list_of_servers.append(default_server)
+	#inform the admin which is the default server
+	print('The default server runs on %s port %s' % (default_server.ip, default_server.port))
+else:
+	#append default server to server list as it shall be the 1st
+	this_server.list_of_servers.append(this_server)
+	#inform the admin that this is the default server
+	print('This is the default server')
 			
-#send a message to all connected clients but to the one that sent it
-def multicastMessagetoClients(this_client, message_type):
-	#set message's parameters
-	#message received from a clien and multicasted to the other clients
-	multicast_sendertype = SenderType.CLIENT
-	#the sender client is identified based on its ip and port, taken from address
-	multicast_senderid = "%s:%s"%(this_client.address[0], this_client.address[1])
-	#message content is not altered
-	multicast_message = this_client.message
-	#if a client joins or leaves
-	if (message_type == MessageType.LEFTROOM or message_type == MessageType.JOINROOM):
-		#create notification
-		if (message_type == MessageType.JOINROOM):
-			multicast_message = '************************ client %s:%s joined the room ********************************' %(this_client.address[0],this_client.address[1])
-		else:
-			multicast_message = '************************ client %s:%s left the room ****************************' %(this_client.address[0],this_client.address[1])
-		#the server sends notifications to all connected clients
-		multicast_sendertype = SenderType.SERVER
-		#specify the identity of the server that handles the join/leave operation
-		multicast_senderid = "%s:%s"%(server_client.ip, server_client.port)
-	#multicast the message
-	for client in list_of_clients:
-		if client != this_client:
-			server_client.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, message_type, multicast_message), client.address)
 
 while True:
-	#communicate with clients and servers using different sockets
-	server_socket_list = [server_client.socket, server_server.socket]
+#Recvfrom takes as input message buffer size = the maximum length for the received message
+#it outputs a pair: first is the data = the message; the second is the socket's address
+	#read data from socket. At this moment is not known whether data belongs to a client or to a server
+	received_packet, received_address = this_server.socket.recvfrom(message_buffer_size)
+	#extract data from packet
+	sender_id, sender_type, message_type, message_content = MessageUtil.extractMessage(received_packet)
 
-	#each iteration check if this server instance received data from a client or from a server
-	read_sockets, write_sockets, error_sockets = [server_socket_list, [], []]
+#handle communication with the clients
+	if (sender_type == SenderType.CLIENT):
+	#Each time a message is received from a client, create a temporary client with the received attributes(message + address)
+		temp_client = ClientModel(message_content, received_address)
 
-	for socket in server_socket_list:
-		# if there is a message received from a client
-		if socket == server_client.socket:
-			#Each time a message is received, create a temporary client with the received attributes(message + address)
-			#Recvfrom takes as input message buffer size = the maximum length for the received message
-			#it outputs a pair: first is the data = the message; the second is the client's socket address
-			temp_client = ClientModel(None, None)
-			received_message, temp_client.address = server_client.socket.recvfrom(message_buffer_size)
-			#extract data from packet
-			sender_id, sender_type, message_type, message_content = MessageUtil.extractMessage(received_message)
-			temp_client.message = message_content
+	#if a new client has joined the conversation
+		if (message_type == MessageType.JOINROOM):
+		#append its attributes to list of clients
+			#temp_client.message = ''
+			this_server.list_of_clients.append(temp_client)
 
-			#new a client has requested to join the conversation
-			if (sender_type == SenderType.CLIENT):
-				if (message_type == MessageType.JOINROOM):
-					#set his message to empty string and append its attributes to list of clients
-					temp_client.message = ''
-					list_of_clients.append(temp_client)
+		#show the entire list of available connections
+			print ('A new client has joined. The current logged in clients are:')
+			for client in this_server.list_of_clients:
+				print (client.address)
 
-					#show the entire list of available connections
-					print ('A new client has joined. The current logged in clients are:')
-					for client in list_of_clients:
-						print (client.address)
+		#send message to the other connected clients
+			this_server.multicastMessagetoClients(temp_client, MessageType.JOINROOM)
+		else:
+		#if the client is in list, check the message type
+			if this_server.isClientInList(temp_client):
+			# if he exited, the client application sends a 'quit' message. 
+				if (message_type == MessageType.LEFTROOM):
+				#notify the other clients
+					this_server.multicastMessagetoClients(temp_client, MessageType.LEFTROOM)
 
-					#send message to the other connected clients
-					multicastMessagetoClients(temp_client, MessageType.JOINROOM)
+				#Remove this client from the list of clients
+					this_server.list_of_clients = this_server.disconnectClient(temp_client)
+						
+				#show results on server side
+					print ('Client', temp_client.address ,'has left. The current logged in clients are:')
+					this_server.showConnectedClients()
 				else:
-					#if the client is in list, check the message type
-					if isClientInList(temp_client):
-						# if he exited, the client application sends a 'quit' message. 
-						if (message_type == MessageType.LEFTROOM):
-							#notify the other clients
-							multicastMessagetoClients(temp_client, MessageType.LEFTROOM)
-							#Remove this client from the list of clients
-							list_of_clients = disconnectClient(list_of_clients, temp_client)
-							#show results on server side
-							print ('Client', temp_client.address ,'has left. The current logged in clients are:')
-							showConnectedClients()
-						else:
-							#update his message in list, as only the last message matters. Also, the message was previously updated in the local variable existing_client
-							for client in list_of_clients:
-								if client == temp_client:
-									client.setMessage(temp_client.message)
-							#send message to the other connected clients
-							multicastMessagetoClients(temp_client, MessageType.NORMALCHAT)
-			#handle server to server communication
-			#if socket == server_server.socket:
-				#store data from the received message in a local variable of type UDPServerModel
-				#temp_server = UDPServerModel(None, None)
-				#temp_server.message, temp_address = server_server.socket.recvfrom(message_buffer_size)
+				#update his message in list, as only the last message matters. Also, the message was previously updated in the local variable existing_client
+					for client in this_server.list_of_clients:
+						if client == temp_client:
+							client.setMessage(temp_client.message)
 
-				#temp_server.ip, temp_server.port = temp_address
-				#message_to_server = 'ack'
-				#server_server.socket.sendto(message_from_client, (temp_server.ip, temp_server.port))
-				
+				#send message to the other connected clients
+					this_server.multicastMessagetoClients(temp_client, MessageType.NORMALCHAT)
+
+#handle communication with other servers
+	if (sender_type == SenderType.SERVER):
+	#if a server sent a message, create a server instance considering the receieved address (ip + port)
+		temp_server = UDPServerModel(received_address[0], received_address[1], 0)
+
+	#if it is a new server
+		if(message_type == MessageType.SERVERUP):
+		#the default server informs the other servers that a new server is up
+			if this_server.default == 1:
+				#append it the way it is to the list of servers, as it is a non default server
+				this_server.list_of_servers.append(temp_server)
+				print ('A new server is up. It runs on the address:', temp_server.getAddress())
+
+				for server in this_server.list_of_servers:	#getAddress to send msg to
+					if server != this_server:
+						this_server.socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SERVERUP, this_server.getConnectedServersAddresses()), server.getAddress())
+			else:
+				# a non-default server receives notifications from defaut server, thus that server can't be appended again. 
+				#The port of the new server is sent as message content
+				for address in message_content:
+					#get rid of unicode
+					address[0] = unicodedata.normalize('NFKD', address[0]).encode('ascii','ignore')
+					#create local server instance 
+					local_server = UDPServerModel(address[0], address[1], 0)
+					#if the server is not in the list, add it
+					if local_server not in this_server.list_of_servers:
+						this_server.list_of_servers.append(local_server)
+		#inform the admin about the current connected servers
+			print ('The current running servers are:')
+			this_server.showConnectedServers()
+		
+	#if the server stopped running
+		if(message_type == MessageType.SERVERDOWN):
+		#remove it from the list of servers
+			this_server.disconnectServer(temp_server)
+		#inform the admin about the current connected servers
+			print ('The server:', temp_server.getAdress(), 'is down. The current running servers are:')
+			this_server.showConnectedServers()
+		
