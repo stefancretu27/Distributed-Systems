@@ -58,8 +58,8 @@ class UDPServerModel:
 #list of clients related operations
 	#for various reasons a client will disconnect => update the list of clients
 	def disconnectClient(self, this_client):
-		if self.client_list:
-			return [client for client in self.list_of_client if client != this_client]
+		if self.list_of_clients:
+			return [client for client in self.list_of_clients if client != this_client]
 		else:
 			return []
 	#display the port and ip of all clients
@@ -122,4 +122,9 @@ class UDPServerModel:
 		if self.list_of_servers:		
 			return [server.getAddress() for server in self.list_of_servers if server.default == 0]
 		else:
-			return []	
+			return []
+
+	def multicastMessageToServers(self, message_type, message_content):
+		for server in self.list_of_servers:	#getAddress to send msg to
+			if server != self:
+				self.socket.sendto(MessageUtil.constructMessage(self.getAddress(), SenderType.SERVER, message_type, message_content), server.getAddress())	

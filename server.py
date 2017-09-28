@@ -68,6 +68,10 @@ while True:
 
 		#send message to the other connected clients
 			this_server.multicastMessagetoClients(temp_client, MessageType.JOINROOM)
+
+		#send message to the other server instances to inform them that a new client has connected as they need to update their client group view
+			this_server.multicastMessageToServers(MessageType.JOINROOM, received_address)
+
 		else:
 		#if the client is in list, check the message type
 			if this_server.isClientInList(temp_client):
@@ -75,6 +79,10 @@ while True:
 				if (message_type == MessageType.LEFTROOM):
 				#notify the other clients
 					this_server.multicastMessagetoClients(temp_client, MessageType.LEFTROOM)
+
+				#send message to the other server instances to inform them that a new client has left as they need to update their client group view
+					this_server.multicastMessageToServers(MessageType.LEFTROOM, received_address)
+
 
 				#Remove this client from the list of clients
 					this_server.list_of_clients = this_server.disconnectClient(temp_client)
@@ -104,9 +112,7 @@ while True:
 				this_server.list_of_servers.append(temp_server)
 				print ('A new server is up. It runs on the address:', temp_server.getAddress())
 
-				for server in this_server.list_of_servers:	#getAddress to send msg to
-					if server != this_server:
-						this_server.socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SERVERUP, this_server.getConnectedServersAddresses()), server.getAddress())
+				this_server.multicastMessageToServers(MessageType.SERVERUP, this_server.getConnectedServersAddresses())
 			else:
 				# a non-default server receives notifications from defaut server, thus that server can't be appended again. 
 				#The port of the new server is sent as message content
@@ -121,7 +127,29 @@ while True:
 		#inform the admin about the current connected servers
 			print ('The current running servers are:')
 			this_server.showConnectedServers()
-		
+
+	#if a new client has connected to another server instance, update local list_of_clients		
+		if(message_type == MessageType.JOINROOM):
+			#the message content is the new client's address = ip+port (received as list, not as tuple)
+			message_content[0] = unicodedata.normalize('NFKD', message_content[0]).encode('ascii','ignore')
+			new_client = ClientModel('', (message_content[0], message_content[1]))
+			if new_client not in this_server.list_of_clients:
+				this_server.list_of_clients.append(new_client)
+				sender_id[0] = unicodedata.normalize('NFKD', sender_id[0]).encode('ascii','ignore')
+				print ('A new client has joined on server:', sender_id)
+				print ('The current connected clients in the system are:')
+				this_server.showConnectedClients()
+
+		if(message_type == MessageType.LEFTROOM):
+			#the message content is the new client's address = ip+port (received as list, not as tuple)
+			message_content[0] = unicodedata.normalize('NFKD', message_content[0]).encode('ascii','ignore')
+			old_client = ClientModel('', (message_content[0], message_content[1]))
+			#Remove this client from the list of clients
+			this_server.list_of_clients = this_server.disconnectClient(old_client)
+			#show results on server side
+			print ('Client', old_client.address ,'has left. The current logged in clients are:')
+			this_server.showConnectedClients()
+
 	#if the server stopped running
 		if(message_type == MessageType.SERVERDOWN):
 		#remove it from the list of servers
