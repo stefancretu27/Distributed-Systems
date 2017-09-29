@@ -4,6 +4,7 @@ import sys
 import socket
 #
 import select
+from datetime import datetime
 #import classes
 from MessageUtil import MessageUtil
 from Enum import MessageType,SenderType,MessageContent
@@ -11,11 +12,16 @@ from Enum import MessageType,SenderType,MessageContent
 UDP_IP = "127.0.0.1"
 UDP_PORT = int (sys.argv[1])
 rec_msg_buffer_size = 2048
+my_joiningdate = None
+
+
+def convertStringToDateTime(str):
+	return datetime.strptime(str, "%Y-%m-%d %H:%M:%S")
 
 #open socket on same IP (localhost) and using same port
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 #send connection message to the server
-client_socket.sendto(MessageUtil.constructMessage("",SenderType.CLIENT,MessageType.JOINROOM,""), (UDP_IP, UDP_PORT))
+client_socket.sendto(MessageUtil.constructMessage(None,SenderType.CLIENT,MessageType.JOINROOM,MessageContent.BLANK, None), (UDP_IP, UDP_PORT))
 
 sys.stdout.write('[Me:] '); sys.stdout.flush()
 
@@ -32,16 +38,22 @@ while True:
 		if socket == client_socket:
 			server_message, server_address = socket.recvfrom(rec_msg_buffer_size)
 			#extract information from the message received from server
-			sender_id, sender_type, message_type, message_content = MessageUtil.extractMessage(server_message)
+			sender_id, sender_type, message_type, message_content, message_datetime = MessageUtil.extractMessage(server_message)
 			if not server_message:
 				print ('disconnected from server')
 				#sys.exit()
 			else:
 				sys.stdout.write('\n')
-				if (sender_type == SenderType.SERVER and message_type != MessageContent.QUIT):
-					sys.stdout.write("%s \n"%(message_content))
+				if (sender_type == SenderType.SERVER):
+					if (message_type == MessageType.JOINROOM or message_type == MessageType.LEFTROOM):
+						sys.stdout.write("%s \n"%(message_content))
+					else:
+						if (message_type == MessageType.ACKNOWLEDGEFROMSERVER):
+							my_joiningdate = convertStringToDateTime(message_content)
+							sys.stdout.write("Joined the chat room at %s \n"%(message_content))
 				else:
-					sys.stdout.write("[%s] %s"%(sender_id, message_content))
+					if (convertStringToDateTime(message_datetime) >= my_joiningdate):
+						sys.stdout.write("[%s at %s] %s"%(sender_id, message_datetime, message_content))
 				sys.stdout.write('[Me:] '); sys.stdout.flush()
 		#stdin has data => user wrote a message
 		else:
@@ -50,14 +62,14 @@ while True:
 				client_message = sys.stdin.readline()
 				if client_message:
 					if (client_message.strip() == MessageContent.QUIT):
-						client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.LEFTROOM, client_message), (UDP_IP, UDP_PORT))
+						client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.LEFTROOM, client_message, None), (UDP_IP, UDP_PORT))
 						client_socket.close()
 						sys.exit();
 					else:
-						client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.NORMALCHAT, client_message), (UDP_IP, UDP_PORT))
+						client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.NORMALCHAT, client_message, None), (UDP_IP, UDP_PORT))
 						sys.stdout.write('[Me:] ');
 						sys.stdout.flush()
 			except:
 				print ('The message could not be sent. The socket will close. Type <~q> to exit the application')
-				client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.LEFTROOM, client_message), (UDP_IP, UDP_PORT))
+				client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.LEFTROOM, client_message, None), (UDP_IP, UDP_PORT))
 				client_socket.close()

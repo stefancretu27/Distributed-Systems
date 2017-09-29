@@ -1,6 +1,9 @@
 class ClientModel:
 	message = None
 	address = None
+	joiningdatetime = None
+	leavingdatetime = None
+	messagedatetime = None
 
 	def __init__ (self, input_message, input_address):
 		self.message = input_message
@@ -19,4 +22,22 @@ class ClientModel:
 		self.message = new_message
 
 	def setAddress(self, new_address):
-		self_address = new_address
+		self.address = new_address
+
+	def setJoiningDateTime(self, new_joiningdatetime):
+		self.joiningdatetime = new_joiningdatetime
+
+	def setLeavingDateTime(self, new_leavingdatetime):
+		self.joiningdatetime = new_leavingdatetime
+
+	def setMessageDateTime(self, new_messagedatetime):
+		self.messagedatetime = new_messagedatetime
+
+	def getJoiningDateTime(self):
+		return self.joiningdatetime
+
+	def getLeavingDateTime(self):
+		return self.leavingdatetime
+
+	def getMessageDateTime(self):
+		return self.messagedatetime
