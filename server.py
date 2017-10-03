@@ -20,7 +20,6 @@ def getCurrentServerDateTime():
 #set message buffer size
 message_buffer_size = 2048
 default_server_port = 5005
-
 #set list of message history
 lst_messagehistory = []
 
@@ -38,7 +37,7 @@ if this_server.default == 0:
 	message_datetime = getCurrentServerDateTime()
 
 	#send message with this server's id, specifying that comes from a server entity, that the server is up and giving the port as message
-	this_server.socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SERVERUP, MessageType.BLANK, message_datetime), default_server.getAddress())
+	this_server.socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SERVERUP, '', message_datetime), default_server.getAddress())
 
 	#append default server to server list as it shall be the 1st
 	this_server.list_of_servers.append(default_server)

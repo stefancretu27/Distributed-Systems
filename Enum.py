@@ -3,4 +3,4 @@ def enum(**named_values):
 
 MessageType = enum(JOINROOM='joinroom', ACKNOWLEDGEFROMSERVER='acknowledgefromserver', NORMALCHAT='normalchat', ANNOUNCEMENT='announcement',LEFTROOM='leftroom', SERVERUP='serverup', SERVERDOWN='serverdown')
 SenderType = enum(CLIENT='client', SERVER='server')
-MessageContent = enum(QUIT='~q',BLANK='')
+MessageContent = enum(QUIT='~q')

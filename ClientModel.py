@@ -33,6 +33,7 @@ class ClientModel:
 	def setMessageDateTime(self, new_messagedatetime):
 		self.messagedatetime = new_messagedatetime
 
+	#getters
 	def getJoiningDateTime(self):
 		return self.joiningdatetime
 

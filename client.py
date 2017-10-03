@@ -26,10 +26,7 @@ client_socket.sendto(MessageUtil.constructMessage("",SenderType.CLIENT,MessageTy
 # Set the TTL for messages to 1 so they do not go past the local network segment.
 ttl = struct.pack('b', 1)
 client_socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
-
-=======
 client_socket.sendto(MessageUtil.constructMessage(None,SenderType.CLIENT,MessageType.JOINROOM,MessageContent.BLANK, None), (UDP_IP, UDP_PORT))
->>>>>>> 1b604a608751c764a2e5030bf8d86d6465001880
 
 sys.stdout.write('[Me:] '); sys.stdout.flush()
 
@@ -70,26 +67,20 @@ while True:
 				client_message = sys.stdin.readline()
 				if client_message:
 					if (client_message.strip() == MessageContent.QUIT):
-<<<<<<< HEAD
 						client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.LEFTROOM, client_message), multicast_group)
 						client_socket.close()
 						sys.exit();
 					else:
 						client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.NORMALCHAT, client_message), multicast_group)
-=======
 						client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.LEFTROOM, client_message, None), (UDP_IP, UDP_PORT))
 						client_socket.close()
 						sys.exit();
 					else:
 						client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.NORMALCHAT, client_message, None), (UDP_IP, UDP_PORT))
->>>>>>> 1b604a608751c764a2e5030bf8d86d6465001880
 						sys.stdout.write('[Me:] ');
 						sys.stdout.flush()
 			except:
 				print ('The message could not be sent. The socket will close. Type <~q> to exit the application')
-<<<<<<< HEAD
 				client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.LEFTROOM, client_message), multicast_group)
-=======
 				client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.LEFTROOM, client_message, None), (UDP_IP, UDP_PORT))
->>>>>>> 1b604a608751c764a2e5030bf8d86d6465001880
 				client_socket.close()
