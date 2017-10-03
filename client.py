@@ -2,20 +2,24 @@
 import sys
 #used for inter-process communication
 import socket
-#
+import struct
 import select
 #import classes
 from MessageUtil import MessageUtil
 from Enum import MessageType,SenderType,MessageContent
 
-UDP_IP = "127.0.0.1"
-UDP_PORT = int (sys.argv[1])
+multicast_group = ('127.0.0.1', int (sys.argv[1])) 
 rec_msg_buffer_size = 2048
 
 #open socket on same IP (localhost) and using same port
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 #send connection message to the server
-client_socket.sendto(MessageUtil.constructMessage("",SenderType.CLIENT,MessageType.JOINROOM,""), (UDP_IP, UDP_PORT))
+client_socket.sendto(MessageUtil.constructMessage("",SenderType.CLIENT,MessageType.JOINROOM,""), multicast_group)
+#TTL (time-to-live) value shows how many networks will get the sent packet. TTL value = [1...255] and is packet in a sigle byte.
+# Set the TTL for messages to 1 so they do not go past the local network segment.
+ttl = struct.pack('b', 1)
+client_socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+
 
 sys.stdout.write('[Me:] '); sys.stdout.flush()
 
@@ -50,14 +54,14 @@ while True:
 				client_message = sys.stdin.readline()
 				if client_message:
 					if (client_message.strip() == MessageContent.QUIT):
-						client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.LEFTROOM, client_message), (UDP_IP, UDP_PORT))
+						client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.LEFTROOM, client_message), multicast_group)
 						client_socket.close()
 						sys.exit();
 					else:
-						client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.NORMALCHAT, client_message), (UDP_IP, UDP_PORT))
+						client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.NORMALCHAT, client_message), multicast_group)
 						sys.stdout.write('[Me:] ');
 						sys.stdout.flush()
 			except:
 				print ('The message could not be sent. The socket will close. Type <~q> to exit the application')
-				client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.LEFTROOM, client_message), (UDP_IP, UDP_PORT))
+				client_socket.sendto(MessageUtil.constructMessage("", SenderType.CLIENT, MessageType.LEFTROOM, client_message), multicast_group)
 				client_socket.close()

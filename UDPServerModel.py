@@ -1,4 +1,6 @@
 import socket
+import struct
+
 from ClientModel import ClientModel
 from MessageUtil import MessageUtil
 from Enum import MessageType,SenderType
@@ -54,6 +56,12 @@ class UDPServerModel:
 		self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		#accept connections on the port given as argument to the process and on the IP provided at object creation
 		self.socket.bind((self.ip, self.port))
+		#Convert an IPv4 address from dotted-quad string format to 32-bit packed binary format
+		#group = socket.inet_aton(self.ip)
+		#The option value is 8-byte representation of multicast group address and of the interface on which the server should listen for traffic. IP can be specified
+		#mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+		# Tell the operating system to add the socket to the multicast group on all interfaces.
+		#self.socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
 #list of clients related operations
 	#for various reasons a client will disconnect => update the list of clients
