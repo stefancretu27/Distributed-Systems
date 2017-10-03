@@ -74,9 +74,9 @@ class UDPServerModel:
 	def showConnectedClients(self):
 		if self.list_of_clients:
 			for client in self.list_of_clients:
-				print (client.address)
+				print "   ",(client.address)
 		else:
-			print ('No clients are currently connected to this server:', self.ip, self.port)
+			print ('[Client update] No clients are currently connected in the system')
 	#search if a client is connected	
 	def isClientInList(self, this_client):
 		for client in self.list_of_clients:
@@ -126,9 +126,9 @@ class UDPServerModel:
 	def showConnectedServers(self):
 		if self.list_of_servers:
 			for server in self.list_of_servers:
-				print (server.ip, server.port)
+				print "   ",(server.ip, server.port)
 		else:
-			print ('No other servers are currently connected to this server:', self.ip)
+			print ('[Server update] No other servers are currently connected to this server:', self.ip)
 
 	def getConnectedServersAddresses(self):
 		if self.list_of_servers:		
@@ -136,7 +136,17 @@ class UDPServerModel:
 		else:
 			return []
 
+	def getConnectedClientsAddresses(self):
+		if self.list_of_clients:		
+			return [client.getAddress() for client in self.list_of_clients]
+		else:
+			return []
+
 	def multicastMessageToServers(self, message_type, message_content, message_datetime):
 		for server in self.list_of_servers:	#getAddress to send msg to
 			if server != self:
 				self.socket.sendto(MessageUtil.constructMessage(self.getAddress(), SenderType.SERVER, message_type, message_content, message_datetime), server.getAddress())
+
+	#used to send message to one entity server/client
+	def unicastMessage(self, message_type, message_content, message_datetime, target_address):
+		self.socket.sendto(MessageUtil.constructMessage(self.getAddress(), SenderType.SERVER, message_type, message_content, message_datetime), target_address)

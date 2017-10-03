@@ -34,6 +34,9 @@ class ClientModel:
 		self.messagedatetime = new_messagedatetime
 
 	#getters
+	def getAddress(self):
+		return self.address
+
 	def getJoiningDateTime(self):
 		return self.joiningdatetime
 

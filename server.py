@@ -7,6 +7,7 @@ import sys
 import socket
 import unicodedata
 import datetime
+import types
 #import classes
 from UDPServerModel import UDPServerModel
 from ClientModel import ClientModel
@@ -29,7 +30,7 @@ this_server = UDPServerModel('127.0.0.1', int (sys.argv[1]), int (sys.argv[2]))
 this_server.openSocket()
 
 #inform the admin that this server is up
-print('Server is starting up on %s port %s' % (this_server.ip, this_server.port))
+print('[Server update] Server is starting up on %s port %s' % (this_server.ip, this_server.port))
 #if not default server, inform the default server about its existence
 if this_server.default == 0:
 	#create a server instance for the default one
@@ -42,12 +43,12 @@ if this_server.default == 0:
 	#append default server to server list as it shall be the 1st
 	this_server.list_of_servers.append(default_server)
 	#inform the admin which is the default server
-	print('The default server runs on %s port %s' % (default_server.ip, default_server.port))
+	print('[Server update] The default server runs on %s port %s' % (default_server.ip, default_server.port))
 else:
 	#append default server to server list as it shall be the 1st
 	this_server.list_of_servers.append(this_server)
 	#inform the admin that this is the default server
-	print('This is the default server')
+	print('[Server update] This is the default server')
 			
 
 while True:
@@ -76,7 +77,7 @@ while True:
 			this_server.list_of_clients.append(temp_client)
 
 		#show the entire list of available connections
-			print ('A new client has joined. The current logged in clients are:')
+			print ('[Client update] A new client has joined on this server, using the address ' + str(temp_client.address) + '. The current logged in clients are:')
 			for client in this_server.list_of_clients:
 				print (client.address)
 
@@ -100,12 +101,11 @@ while True:
 				#send message to the other server instances to inform them that a new client has left as they need to update their client group view
 					this_server.multicastMessageToServers(MessageType.LEFTROOM, received_address, serverdatetime_received_packet)
 
-
 				#Remove this client from the list of clients
 					this_server.list_of_clients = this_server.disconnectClient(temp_client)
 						
 				#show results on server side
-					print ('Client', temp_client.address ,'has left. The current logged in clients are:')
+					print ('[Client update] Client ' + str(temp_client.address) + ' has left. The current logged in clients are:')
 					this_server.showConnectedClients()
 				else:
 				#append to message to the message history list
@@ -139,11 +139,15 @@ while True:
 			if this_server.default == 1:
 				#append it the way it is to the list of servers, as it is a non default server
 				this_server.list_of_servers.append(temp_server)
-				print ('A new server is up. It runs on the address:', temp_server.getAddress())
+				print ('[Server update] A new server is up. It runs on the address: ' + str(temp_server.getAddress()))
 
 				this_server.multicastMessageToServers(MessageType.SERVERUP, this_server.getConnectedServersAddresses(), serverdatetime_received_acknowledgement)
+				#send to the newly added server the list of connected clients
+				if this_server.list_of_clients:
+					this_server.unicastMessage(MessageType.JOINROOM, this_server.getConnectedClientsAddresses(), serverdatetime_received_acknowledgement, temp_server.getAddress())
+				
 			else:
-				# a non-default server receives notifications from defaut server, thus that server can't be appended again. 
+				# a non-default server receives notifications from default server, thus that server can't be appended again. 
 				#The port of the new server is sent as message content
 				for address in message_content:
 					#get rid of unicode
@@ -154,20 +158,30 @@ while True:
 					if local_server not in this_server.list_of_servers:
 						this_server.list_of_servers.append(local_server)
 		#inform the admin about the current connected servers
-			print ('The current running servers are:')
+			print ('[Server update] The current running servers are:')
 			this_server.showConnectedServers()
 
 	#if a new client has connected to another server instance, update local list_of_clients		
 		if(message_type == MessageType.JOINROOM):
-			#the message content is the new client's address = ip+port (received as list, not as tuple)
-			message_content[0] = unicodedata.normalize('NFKD', message_content[0]).encode('ascii','ignore')
-			new_client = ClientModel('', (message_content[0], message_content[1]))
-			if new_client not in this_server.list_of_clients:
-				this_server.list_of_clients.append(new_client)
-				sender_id[0] = unicodedata.normalize('NFKD', sender_id[0]).encode('ascii','ignore')
-				print ('A new client has joined on server:', sender_id)
-				print ('The current connected clients in the system are:')
-				this_server.showConnectedClients()
+			if all(isinstance(elem, list) for elem in message_content):
+				for client_address in message_content:
+					#the message content is the new client's address = ip+port (received as list, not as tuple)
+					client_ip = unicodedata.normalize('NFKD', client_address[0]).encode('ascii','ignore')
+					new_client = ClientModel('', (client_ip, client_address[1]))
+					if new_client not in this_server.list_of_clients:
+						this_server.list_of_clients.append(new_client)
+			else:
+				#the message content is the new client's address = ip+port (received as list, not as tuple)
+				message_content[0] = unicodedata.normalize('NFKD', message_content[0]).encode('ascii','ignore')
+				new_client = ClientModel('', (message_content[0], message_content[1]))
+				if new_client not in this_server.list_of_clients:
+					this_server.list_of_clients.append(new_client)
+
+			
+			sender_id[0] = unicodedata.normalize('NFKD', sender_id[0]).encode('ascii','ignore')
+			print ('[Client update] A new client has joined on server: '+ str(sender_id))
+			print ('[Client update] The current connected clients in the system are:')
+			this_server.showConnectedClients()
 
 		if(message_type == MessageType.LEFTROOM):
 			#the message content is the new client's address = ip+port (received as list, not as tuple)
@@ -176,7 +190,7 @@ while True:
 			#Remove this client from the list of clients
 			this_server.list_of_clients = this_server.disconnectClient(old_client)
 			#show results on server side
-			print ('Client', old_client.address ,'has left. The current logged in clients are:')
+			print ('[Client update] Client ' + str(old_client.address) + ' has left. The current logged in clients are:')
 			this_server.showConnectedClients()
 
 	#if the server stopped running
@@ -184,7 +198,7 @@ while True:
 		#remove it from the list of servers
 			this_server.disconnectServer(temp_server)
 		#inform the admin about the current connected servers
-			print ('The server:', temp_server.getAdress(), 'is down. The current running servers are:')
+			print ('[Server update] The server: ' + str(temp_server.getAdress()) + ' is down. The current running servers are:')
 			this_server.showConnectedServers()
 		
 
