@@ -85,7 +85,7 @@ class UDPServerModel:
 		return False
 
 	#send a message to all connected clients but to the one that sent it
-	def multicastMessagetoClients(self, this_client, message_type):
+	def multicastMessagetoClients(self, this_client, message_type, serverdatetime):
 	#set message's parameters
 		#message received from a clien and multicasted to the other clients
 		multicast_sendertype = SenderType.CLIENT
@@ -93,10 +93,11 @@ class UDPServerModel:
 		multicast_senderid = "%s:%s"%(this_client.address[0], this_client.address[1])
 		#message content is not altered
 		multicast_message = this_client.message
+		multicast_datetime = serverdatetime
 
 		#if a client joins or leaves
 		if (message_type == MessageType.LEFTROOM or message_type == MessageType.JOINROOM):
-			#create notification
+			#create notifications
 			if (message_type == MessageType.JOINROOM):
 				multicast_message = '************************ client %s:%s joined the room ********************************' %(this_client.address[0],this_client.address[1])
 			else:
@@ -108,8 +109,11 @@ class UDPServerModel:
 
 		#multicast the message
 		for client in self.list_of_clients:
-			if client != this_client:
-				self.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, message_type, multicast_message), client.address)
+			if (client == this_client):
+				if (message_type == MessageType.JOINROOM):
+					self.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, MessageType.ACKNOWLEDGEFROMSERVER, this_client.getJoiningDateTime(), multicast_datetime), client.address)
+			else:
+				self.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, message_type, multicast_message, multicast_datetime), client.address)
 
 #list of servers related operations
 	#if the server goes down, remove it from the list of servers
@@ -132,7 +136,7 @@ class UDPServerModel:
 		else:
 			return []
 
-	def multicastMessageToServers(self, message_type, message_content):
+	def multicastMessageToServers(self, message_type, message_content, message_datetime):
 		for server in self.list_of_servers:	#getAddress to send msg to
 			if server != self:
-				self.socket.sendto(MessageUtil.constructMessage(self.getAddress(), SenderType.SERVER, message_type, message_content), server.getAddress())	
+				self.socket.sendto(MessageUtil.constructMessage(self.getAddress(), SenderType.SERVER, message_type, message_content, message_datetime), server.getAddress())
