@@ -1,4 +1,5 @@
 import socket
+#used for packing IPv4 address
 import struct
 
 from ClientModel import ClientModel
@@ -10,12 +11,18 @@ class UDPServerModel:
 #a server is identified based on its ip and port
 	ip = None
 	port = None
-#socket object used for communication
+#socket object used for communication with clients and to update the other servers with newest client info (general socket)
 	socket = None
+
+#socket object used for discovery and fault tolerance
+	discovery_socket = None
+#dynamic discovery global data
+	discovery_multicast_group = '224.1.1.1'
+	discovery_multicast_port = 12000
+
 #message
 	message = None
-#default server
-	default = 0
+
 #store the info about the other servers. It includes all servers.
 	list_of_servers = list()
 #store all connected clients in a global list	
@@ -23,10 +30,9 @@ class UDPServerModel:
 
 #Methods
 #constructor
-	def __init__(self, new_ip, new_port, new_default):
+	def __init__(self, new_ip, new_port):
 		self.port = new_port
 		self.ip = new_ip
-		self.default = new_default
 
 #override operators
 	#a server is the same if it has the same IP address
@@ -50,18 +56,30 @@ class UDPServerModel:
 	def getAddress(self):
 		return (self.ip, self.port)
 
-	#method for openningt he communication socket
+	def getDiscoveryAddress(self):
+		return (self.discovery_multicast_group, self.discovery_multicast_port)
+
+	#method for setting the communication on the general socket
 	def openSocket(self):
 		#create UDP socket
 		self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		#accept connections on the port given as argument to the process and on the IP provided at object creation
 		self.socket.bind((self.ip, self.port))
+
+	def initializeDiscoverySocket(self):
+		# Create the socket
+		self.discovery_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		#reuse the multicast address sso multiple server instances can bind it and use it
+		self.discovery_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		# Bind to the discovery address
+		self.discovery_socket.bind(self.getDiscoveryAddress())
 		#Convert an IPv4 address from dotted-quad string format to 32-bit packed binary format
-		#group = socket.inet_aton(self.ip)
+		group = socket.inet_aton(self.discovery_multicast_group)
 		#The option value is 8-byte representation of multicast group address and of the interface on which the server should listen for traffic. IP can be specified
-		#mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+		mreq = struct.pack('4sL', group, socket.INADDR_ANY)
 		# Tell the operating system to add the socket to the multicast group on all interfaces.
-		#self.socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+		self.discovery_socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+
 
 #list of clients related operations
 	#for various reasons a client will disconnect => update the list of clients
