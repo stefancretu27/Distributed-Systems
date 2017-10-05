@@ -17,8 +17,46 @@ from MessageUtil import MessageUtil
 from Enum import MessageType,SenderType
 from MessageHistoryModel import MessageHistoryModel
 
+
+
+#store the info about the other servers. It includes all servers.
+list_of_servers = list()
+
+#get current server datetime
 def getCurrentServerDateTime():
 	return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+#list of servers related operations
+
+#if the server goes down, remove it from the list of servers
+def disconnectServer(self, removed_server):
+	if list_of_servers and self != removed_server:
+		return [server for server in list_of_servers if server != removed_server]
+	else:
+		return []
+#display the port and ip of the other servers
+def showConnectedServers(self):
+	if list_of_servers:
+		for server in list_of_servers:
+			print ("   ",(server.ip, server.port),"joiningdatetime: ", server.getJoiningDateTime(), " lastsendingmessagedatetime:",server.getLastSendingMessageDateTime())
+	else:
+		print ('[Server update] No other servers are currently connected to this server:', self.ip)
+
+def getConnectedServersAddresses(self):
+	if list_of_servers:
+		return [server.getAddress() for server in list_of_servers if server.default == 0]
+	else:
+		return []
+
+def multicastMessageToServers(self, message_type, message_content, message_datetime):
+	for server in list_of_servers:	#getAddress to send msg to
+		if server != self:
+			self.socket.sendto(MessageUtil.constructMessage(self.getAddress(), SenderType.SERVER, message_type, message_content, message_datetime), server.getAddress())
+
+#used to send message to one entity server/client
+def unicastMessage(self, message_type, message_content, message_datetime, target_address):
+	self.socket.sendto(MessageUtil.constructMessage(self.getAddress(), SenderType.SERVER, message_type, message_content, message_datetime), target_address)
+
 
 #set message buffer size
 message_buffer_size = 2048
@@ -29,12 +67,14 @@ lst_messagehistory = []
 
 #create server instance, on localhost, to handle client data exchange (with client, but also with servers)
 this_server = UDPServerModel(localhost, int (sys.argv[1]))
+#append server joining time and last sending message time
+this_server.setJoiningDateTime(MessageUtil.convertStringToDateTime(getCurrentServerDateTime()))
 #open server general socket
 this_server.openSocket()
 #for this server instance, initialize the discovery socket 
 this_server.initializeDiscoverySocket()
 #append this_server instance to its own list of servers
-this_server.list_of_servers.append(this_server)
+list_of_servers.append(this_server)
 
 
 #inform the admin that this server is up
@@ -49,8 +89,9 @@ while True:
 	for socket in write_sockets:
 		if socket == this_server.discovery_socket:
 			message_datetime = getCurrentServerDateTime()
+			this_server.setLastSendingMessageDateTime(MessageUtil.convertStringToDateTime(message_datetime))
 			#send message with this server's id, specifying that comes from a server entity, that the server is up and giving the port as message
-			this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SERVERUP, '', message_datetime), this_server.getDiscoveryAddress())
+			this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SERVERUP, MessageUtil.convertDateTimeToString(this_server.getJoiningDateTime()), message_datetime), this_server.getDiscoveryAddress())
 
 	#read data received on sockets
 	read_sockets, write_sockets, error_sockets = select.select(socket_list, [], [])
@@ -69,18 +110,21 @@ while True:
 				#create a temporary server model with the received attributes
 				temp_server = UDPServerModel(localhost, sender_port)
 				serverdatetime_received_acknowledgement = getCurrentServerDateTime()
+				temp_server.setLastSendingMessageDateTime(MessageUtil.convertStringToDateTime(message_datetime))
 
-				if temp_server not in this_server.list_of_servers:
-					this_server.list_of_servers.append(temp_server)
+				if temp_server not in list_of_servers:
+					temp_server_joining_datetime = MessageUtil.convertStringToDateTime(message_content)
+					temp_server.setJoiningDateTime(temp_server_joining_datetime)
+					list_of_servers.append(temp_server)
 					print ('[Server update] A new server is up. It runs on the address: ' + str(temp_server.getAddress()))
 
 					#send to the newly added server the list of connected clients (if any clients) using the general socket
-					if this_server.list_of_clients:
-						this_server.unicastMessage(MessageType.JOINROOM, this_server.getConnectedClientsAddresses(), serverdatetime_received_acknowledgement, temp_server.getAddress())
+					if (this_server.list_of_clients) and (this_server.getJoiningDateTime() < temp_server.getJoiningDateTime()):
+						unicastMessage(this_server, MessageType.JOINROOM, this_server.getConnectedClientsAddresses(), serverdatetime_received_acknowledgement, temp_server.getAddress())
 
 					#inform the admin about the current connected servers (inform that the list of servers has been updated)
 					print ('[Server update] The current running servers are:')
-					this_server.showConnectedServers()
+					showConnectedServers(this_server)
 
 				
 		if socket == this_server.socket:
@@ -107,10 +151,10 @@ while True:
 				#show the entire list of available connections
 					print ('[Client update] A new client has joined on this server, using the address ' + str(temp_client.address) + '. The current logged in clients are:')
 					for client in this_server.list_of_clients:
-						print "   ",(client.address)
+						print ("   ",(client.address))
 
 				#send message to the other server instances to inform them that a new client has connected as they need to update their client group view
-					this_server.multicastMessageToServers(MessageType.JOINROOM, received_address, serverdatetime_received_packet)
+					multicastMessageToServers(this_server, MessageType.JOINROOM, received_address, serverdatetime_received_packet)
 				#send message to the other connected clients
 					this_server.multicastMessagetoClients(temp_client, MessageType.JOINROOM, serverdatetime_received_packet)
 			#if a it is an existing client, check the message type
@@ -121,7 +165,7 @@ while True:
 						#record leving datetime
 							temp_client.setLeavingDateTime(serverdatetime_received_packet)
 						#send message to the other server instances to inform them that a new client has left as they need to update their client group view
-							this_server.multicastMessageToServers(MessageType.LEFTROOM, received_address, serverdatetime_received_packet)
+							multicastMessageToServers(this_server, MessageType.LEFTROOM, received_address, serverdatetime_received_packet)
 						#notify the other clients
 							this_server.multicastMessagetoClients(temp_client, MessageType.LEFTROOM, serverdatetime_received_packet)
 						#Remove this client from the list of clients

@@ -13,10 +13,6 @@ multicast_group = ('127.0.0.1', int (sys.argv[1]))
 rec_msg_buffer_size = 2048
 my_joiningdate = None
 
-
-def convertStringToDateTime(str):
-	return datetime.strptime(str, "%Y-%m-%d %H:%M:%S")
-
 #open socket on same IP (localhost) and using same port
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -53,10 +49,10 @@ while True:
 						sys.stdout.write("%s \n"%(message_content))
 					else:
 						if (message_type == MessageType.ACKNOWLEDGEFROMSERVER):
-							my_joiningdate = convertStringToDateTime(message_content)
+							my_joiningdate = MessageUtil.convertStringToDateTime(message_content)
 							sys.stdout.write("Joined the chat room at %s \n"%(message_content))
 				else:
-					if (convertStringToDateTime(message_datetime) >= my_joiningdate):
+					if (MessageUtil.convertStringToDateTime(message_datetime) >= my_joiningdate):
 						sys.stdout.write("[%s at %s] %s"%(sender_id, message_datetime, message_content))
 				sys.stdout.write('[Me:] '); sys.stdout.flush()
 		#stdin has data => user wrote a message

@@ -23,8 +23,12 @@ class UDPServerModel:
 #message
 	message = None
 
-#store the info about the other servers. It includes all servers.
-	list_of_servers = list()
+#joining datetime
+	joiningdatetime = None
+
+#last sending message datetime
+	lastsendingmessagedatetime = None
+
 #store all connected clients in a global list	
 	list_of_clients = list()
 
@@ -47,6 +51,10 @@ class UDPServerModel:
 		self.ip = new_ip
 	def setPort(self, new_port):
 		self.port = new_port
+	def setJoiningDateTime(self, new_joiningdatetime):
+		self.joiningdatetime = new_joiningdatetime
+	def setLastSendingMessageDateTime(self, new_lastsendingmessagedatetime):
+		self.lastsendingmessagedatetime = new_lastsendingmessagedatetime
 
 #getters
 	#build ID
@@ -58,6 +66,12 @@ class UDPServerModel:
 
 	def getDiscoveryAddress(self):
 		return (self.discovery_multicast_group, self.discovery_multicast_port)
+
+	def getJoiningDateTime(self):
+		return (self.joiningdatetime)
+
+	def getLastSendingMessageDateTime(self):
+		return (self.lastsendingmessagedatetime)
 
 	#method for setting the communication on the general socket
 	def openSocket(self):
@@ -92,7 +106,7 @@ class UDPServerModel:
 	def showConnectedClients(self):
 		if self.list_of_clients:
 			for client in self.list_of_clients:
-				print "   ",(client.address)
+				print ("   ",(client.address))
 		else:
 			print ('[Client update] No clients are currently connected in the system')
 	#search if a client is connected	
@@ -133,38 +147,8 @@ class UDPServerModel:
 			else:
 				self.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, message_type, multicast_message, multicast_datetime), client.address)
 
-#list of servers related operations
-	#if the server goes down, remove it from the list of servers
-	def disconnectServer(self, removed_server):
-		if self.list_of_servers and self != removed_server:
-			return [server for server in self.list_of_servers if server != removed_server]
-		else:
-			return []
-	#display the port and ip of the other servers
-	def showConnectedServers(self):
-		if self.list_of_servers:
-			for server in self.list_of_servers:
-				print "   ",(server.ip, server.port)
-		else:
-			print ('[Server update] No other servers are currently connected to this server:', self.ip)
-
-	def getConnectedServersAddresses(self):
-		if self.list_of_servers:		
-			return [server.getAddress() for server in self.list_of_servers if server.default == 0]
-		else:
-			return []
-
 	def getConnectedClientsAddresses(self):
-		if self.list_of_clients:		
+		if self.list_of_clients:
 			return [client.getAddress() for client in self.list_of_clients]
 		else:
 			return []
-
-	def multicastMessageToServers(self, message_type, message_content, message_datetime):
-		for server in self.list_of_servers:	#getAddress to send msg to
-			if server != self:
-				self.socket.sendto(MessageUtil.constructMessage(self.getAddress(), SenderType.SERVER, message_type, message_content, message_datetime), server.getAddress())
-
-	#used to send message to one entity server/client
-	def unicastMessage(self, message_type, message_content, message_datetime, target_address):
-		self.socket.sendto(MessageUtil.constructMessage(self.getAddress(), SenderType.SERVER, message_type, message_content, message_datetime), target_address)
