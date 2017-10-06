@@ -49,13 +49,13 @@ def getConnectedServersAddresses():
 		return []
 
 def multicastMessageToServers(message_type, message_content, message_datetime):
-	for server in list_of_servers:	#getAddress to send msg to
-		if server != this_server:
-			this_server.socket.sendto(MessageUtil.constructMessage(this_server.getAddress(), SenderType.SERVER, message_type, message_content, message_datetime), server.getAddress())
+	#for server in list_of_servers:	#getAddress to send msg to
+		#if server != this_server:
+	this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, message_type, message_content, message_datetime), this_server.getDiscoveryAddress())
 
 #used to send message to one entity server/client
 def unicastMessage(message_type, message_content, message_datetime, target_address):
-	this_server.socket.sendto(MessageUtil.constructMessage(this_server.getAddress(), SenderType.SERVER, message_type, message_content, message_datetime), target_address)
+	this_server.socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, message_type, message_content, message_datetime), target_address)
 
 
 #set message buffer size
@@ -105,8 +105,10 @@ while True:
 			
 			#extract data from received packet and store it in local object
 			temp_packet.extractData()
-			#add packet in message queue
-			this_server.message_queue.append(temp_packet)
+			#discard own message
+			if this_server.port != temp_packet.sender_id:
+				#add packet in message queue
+				this_server.message_queue.append(temp_packet)
 
 		if socket == this_server.socket:
 		##Recvfrom takes as input message buffer size = the maximum length for the received message
@@ -118,8 +120,10 @@ while True:
 			
 			#extract data from received packet and store it in local object
 			temp_packet.extractData()
-			#add packet in message queue
-			this_server.message_queue.append(temp_packet)
+			#discard own message
+			if this_server.port != temp_packet.sender_id:
+				#add packet in message queue
+				this_server.message_queue.append(temp_packet)
 
 	#once packets were read from sockets and appended to this_server message queue, the message queue is sorted based on sendingDateTime
 	this_server.message_queue.sort(key=lambda packet: packet.sendingDateTime)
@@ -176,6 +180,7 @@ while True:
 						#inform the admin
 						print ('[Client update] There are ' + str(len(packet.message_content)) + ' client(s) connected in the system') 
 				else:
+					print 'recv'
 				#If this server is running and a new client joined on another running server, the message content is the new client's address = ip+port (received as list, not as tuple)
 					packet.message_content[0] = unicodedata.normalize('NFKD', packet.message_content[0]).encode('ascii','ignore')
 					new_client = ClientModel('', (packet.message_content[0], packet.message_content[1]))
@@ -185,12 +190,12 @@ while True:
 						
 					#inform the admin		
 					sender_id = packet.sender_id
-					sender_id[0] = unicodedata.normalize('NFKD', sender_id[0]).encode('ascii','ignore')
+					#sender_id[0] = unicodedata.normalize('NFKD', sender_id[0]).encode('ascii','ignore')
 					print ('[Client update] A new client has joined on server: '+ str(sender_id))
 				
-					#show to admin all connected clients	
-					print ('[Client update] The currently connected clients in the system are:')
-					this_server.showConnectedClients()
+				#show to admin all connected clients	
+				print ('[Client update] The currently connected clients in the system are:')
+				this_server.showConnectedClients()
 
 			if(packet.message_type == MessageType.LEFTROOM):
 				#the message content is the new client's address = ip+port (received as list, not as tuple)
@@ -220,6 +225,7 @@ while True:
 				for client in this_server.list_of_clients:
 					print ("   ",(client.address))
 
+				print 'sent'
 				#send message to the other server instances to inform them that a new client has connected as they need to update their client group view
 				multicastMessageToServers(MessageType.JOINROOM, packet.sender_address, packet.receivedDateTime)
 				#send message to the other connected clients
