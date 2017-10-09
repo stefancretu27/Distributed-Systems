@@ -91,7 +91,8 @@ while True:
 			this_server.setLastSendingMessageDateTime(MessageUtil.convertStringToDateTime(message_datetime))
 			#send message with this server's id, specifying that comes from a server entity, that the server is up and giving the port as message
 			###the message is sent continuously, by each running server
-			this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SERVERUP, MessageUtil.convertDateTimeToString(this_server.getJoiningDateTime()), message_datetime), this_server.getDiscoveryAddress())
+			this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SERVERUP, \
+				MessageUtil.convertDateTimeToString(this_server.getJoiningDateTime()), message_datetime), this_server.getDiscoveryAddress())
 
 	#read data received on both sockets
 	read_sockets, write_sockets, error_sockets = select.select(socket_list, [], [])
@@ -105,10 +106,22 @@ while True:
 			
 			#extract data from received packet and store it in local object
 			temp_packet.extractData()
+			
+			if isinstance(temp_packet.message_content, list):
+				temp_packet.message_content[0] = unicodedata.normalize('NFKD', temp_packet.message_content[0]).encode('ascii','ignore')
+				temp_packet.message_content = (temp_packet.message_content[0], temp_packet.message_content[1])
+
 			#discard own message
 			if this_server.port != temp_packet.sender_id:
 				#add packet in message queue
-				this_server.message_queue.append(temp_packet)
+				if temp_packet not in this_server.received_messages_queue:
+					this_server.received_messages_queue.append(temp_packet)
+			#if received own message, remove it from the sending queue
+			else:
+				#remove processed packet from the received_messages_queue
+				if this_server.sending_messages_queue:
+					if temp_packet in this_server.sending_messages_queue:
+						this_server.sending_messages_queue.remove(temp_packet)
 
 		if socket == this_server.socket:
 		##Recvfrom takes as input message buffer size = the maximum length for the received message
@@ -120,30 +133,34 @@ while True:
 			
 			#extract data from received packet and store it in local object
 			temp_packet.extractData()
+
 			#discard own message
 			if this_server.port != temp_packet.sender_id:
 				#add packet in message queue
-				this_server.message_queue.append(temp_packet)
+				if temp_packet not in this_server.received_messages_queue:
+					this_server.received_messages_queue.append(temp_packet)
 
 	#once packets were read from sockets and appended to this_server message queue, the message queue is sorted based on sendingDateTime
-	this_server.message_queue.sort(key=lambda packet: packet.sendingDateTime)
+	this_server.received_messages_queue.sort(key=lambda packet: packet.sendingDateTime)
 	
 	#process received packets
-	for packet in this_server.message_queue:
+	for packet in this_server.received_messages_queue:
+		#print packet.sendingDateTime
 		#if a packet was sent by a server
 		if(temp_packet.sender_type == SenderType.SERVER):
 			#create a temporary server model with the received attributes
 			temp_server = UDPServerModel(localhost, temp_packet.sender_id)
 			#this server records the time of the last received packet from any servers connected in the multicast group. Actually, it is the time the packet was sent
-			#temp_server.setLastSendingMessageDateTime(MessageUtil.convertStringToDateTime(packet.sendingDateTime))
+			temp_server.setLastSendingMessageDateTime(MessageUtil.convertStringToDateTime(str(packet.sendingDateTime)))
 			
 			###for the time being, this verification is redundant, since all servers sent SERVERUP continuously but not other message type. 
-			if(temp_packet.message_type == MessageType.SERVERUP):
+			if(temp_packet.message_type == MessageType.SERVERUP and packet.message_type != MessageType.JOINROOM and packet.message_content != None):
 				#If the server that sent the message is not in this server's group view, add it (remove duplicate message tactic)
 				if temp_server not in list_of_servers:
 					#Each time a SERVERUP message is sent, it's content has the jointime of the server which sent the packet. 
-					#Now, for temp_server, the joiningDateTime  = lastSendingMessageTime 
-					temp_server.setJoiningDateTime(MessageUtil.convertStringToDateTime(packet.message_content))
+					#Now, for temp_server, the joiningDateTime  = lastSendingMessageTime
+					print "ServerUp", packet.receivedDateTime, packet.message_content 
+					temp_server.setJoiningDateTime(MessageUtil.convertStringToDateTime(str(packet.message_content)))
 					list_of_servers.append(temp_server)
 					print ('[Server update] A server is up. It runs on the address: ' + str(temp_server.getAddress()))
 
@@ -153,19 +170,23 @@ while True:
 						oldest_server = this_server
 						for server in list_of_servers:
 							if server != this_server:
-								if server.joiningdatetime < this_server.joiningdatetime:
+								if temp_server.joiningdatetime < this_server.joiningdatetime:
 									#another server instance is the oldest
 									oldest_server = server
 						#this server unicasts the message only if it is the oldest
 						if oldest_server == this_server:
-							unicastMessage(MessageType.JOINROOM, this_server.getConnectedClientsAddresses(), temp_server.lastsendingmessagedatetime, temp_server.getAddress())
+							#unicastMessage(MessageType.JOINROOM, this_server.getConnectedClientsAddresses(), str(getCurrentServerDateTime()), temp_server.getAddress())
+							#create a packet with data to be sent and append it to the list. It is initialized to have the receivingDataTime = sendingDateTime
+							sending_packet = DataPacketModel(getCurrentServerDateTime())
+							sending_packet.buildPacket(temp_server.getAddress(), SenderType.SERVER, MessageType.JOINROOM, this_server.getConnectedClientsAddresses(), \
+							getCurrentServerDateTime(), this_server.port)
+							this_server.sending_messages_queue.append(sending_packet)
 
 					#inform the admin about the current connected servers (inform that the list of servers has been updated)
 					print ('[Server update] The current running servers are:')
-					showConnectedServers()
-					
+					showConnectedServers()		
 			#If a new client has connected to another server instance or if this_server joined later, it gets the attributes of the client(s) from the other servers	
-			if(packet.message_type == MessageType.JOINROOM):
+			elif(packet.message_type == MessageType.JOINROOM):
 				#If this_server joined later, it gets a list of more clients as message_content
 				if all(isinstance(elem, list) for elem in packet.message_content):
 					for client_address in packet.message_content:
@@ -180,9 +201,9 @@ while True:
 						#inform the admin
 						print ('[Client update] There are ' + str(len(packet.message_content)) + ' client(s) connected in the system') 
 				else:
-					print 'recv'
 				#If this server is running and a new client joined on another running server, the message content is the new client's address = ip+port (received as list, not as tuple)
-					packet.message_content[0] = unicodedata.normalize('NFKD', packet.message_content[0]).encode('ascii','ignore')
+					if isinstance(packet.message_content, unicode):
+						packet.message_content[0] = unicodedata.normalize('NFKD', packet.message_content[0]).encode('ascii','ignore')
 					new_client = ClientModel('', (packet.message_content[0], packet.message_content[1]))
 					#Add the client in the list, but firstly check if it's there (remove duplicate message tactic)	
 					if new_client not in this_server.list_of_clients:
@@ -196,11 +217,11 @@ while True:
 				#show to admin all connected clients	
 				print ('[Client update] The currently connected clients in the system are:')
 				this_server.showConnectedClients()
-
-			if(packet.message_type == MessageType.LEFTROOM):
+			elif(packet.message_type == MessageType.LEFTROOM):
 				#the message content is the new client's address = ip+port (received as list, not as tuple)
 				msg_content = packet.message_content
-				msg_content[0] = unicodedata.normalize('NFKD', msg_content[0]).encode('ascii','ignore')
+				if isinstance(packet.message_content, unicode):
+					msg_content[0] = unicodedata.normalize('NFKD', msg_content[0]).encode('ascii','ignore')
 				old_client = ClientModel('', (msg_content[0], msg_content[1]))
 				#Remove this client from the list of clients
 				this_server.list_of_clients = this_server.disconnectClient(old_client)
@@ -225,22 +246,41 @@ while True:
 				for client in this_server.list_of_clients:
 					print ("   ",(client.address))
 
-				print 'sent'
+				#build a packet
+				server_packet = DataPacketModel(getCurrentServerDateTime())
 				#send message to the other server instances to inform them that a new client has connected as they need to update their client group view
-				multicastMessageToServers(MessageType.JOINROOM, packet.sender_address, packet.receivedDateTime)
+				#multicastMessageToServers(MessageType.JOINROOM, packet.sender_address, packet.receivedDateTime)
+				server_packet.buildPacket("recv from client", SenderType.SERVER, MessageType.JOINROOM, packet.sender_address, packet.receivedDateTime, this_server.port)
+				this_server.sending_messages_queue.append(server_packet)
+				
+				#build a packet
+				client_packet = DataPacketModel(getCurrentServerDateTime())
 				#send message to the other connected clients
-				this_server.multicastMessagetoClients(temp_client, MessageType.JOINROOM, packet.receivedDateTime)
-			
+				#this_server.multicastMessagetoClients(temp_client, MessageType.JOINROOM, packet.receivedDateTime)
+				client_packet.buildPacket(temp_client, SenderType.CLIENT, MessageType.JOINROOM, packet.sender_address, packet.receivedDateTime, this_server.port)
+				this_server.sending_messages_queue.append(client_packet)
+				
 			#If the client quit the chat, the client application sends a 'quit' message.
 			if (packet.message_type == MessageType.LEFTROOM):
 				#make sure the client attributes are in this_server's client group view
 				if this_server.isClientInList(temp_client):
 					#record leving datetime
 					temp_client.setLeavingDateTime(temp_packet.receivedDateTime)
+					
+					#build a packet
+					server_packet = DataPacketModel(getCurrentServerDateTime())
 					#send message to the other server instances to inform them that a new client has left as they need to update their client group view
-					multicastMessageToServers(MessageType.LEFTROOM, packet.sender_address, packet.receivedDateTime)
+					#multicastMessageToServers(MessageType.LEFTROOM, packet.sender_address, packet.receivedDateTime)
+					server_packet.buildPacket("recv from client", SenderType.SERVER, MessageType.LEFTROOM, packet.sender_address, packet.receivedDateTime, this_server.port)
+					this_server.sending_messages_queue.append(server_packet)
+					
+					#build a packet
+					client_packet = DataPacketModel(getCurrentServerDateTime())
 					#notify the other clients
-					this_server.multicastMessagetoClients(temp_client, MessageType.LEFTROOM, packet.receivedDateTime)
+					#this_server.multicastMessagetoClients(temp_client, MessageType.LEFTROOM, packet.receivedDateTime)
+					client_packet.buildPacket(temp_client, SenderType.CLIENT, MessageType.LEFTROOM, packet.sender_address, packet.receivedDateTime, this_server.port)
+					this_server.sending_messages_queue.append(client_packet)
+				
 					#Remove this client from the list of clients
 					this_server.list_of_clients = this_server.disconnectClient(temp_client)
 
@@ -261,11 +301,25 @@ while True:
 						if client == temp_client:
 							client.setMessage(temp_client.message)
 					#send message to the other connected clients
-					this_server.multicastMessagetoClients(temp_client, MessageType.NORMALCHAT, packet.receivedDateTime)
+					#this_server.multicastMessagetoClients(temp_client, MessageType.NORMALCHAT, packet.receivedDateTime)
+					client_packet.buildPacket(temp_client, SenderType.CLIENT, MessageType.NORMALCHAT, packet.sender_address, packet.receivedDateTime, this_server.port)
+					this_server.sending_messages_queue.append(client_packet)
 
-					#print message history
-					#print("------------------- History of the message---------------------------")
-					#for msg in lst_messagehistory:
-						#print(msg.message, msg.messagedatetime, msg.ClientModel.address)
-		#remove processed packet from the message_queue
-		this_server.message_queue.remove(packet)
+		#remove processed packet from the received_messages_queue
+		this_server.received_messages_queue.remove(packet)
+		
+	#this_server.sending_messages_queue.sort(key=lambda packet: packet.sendingDateTime)	
+	
+	for packet in this_server.sending_messages_queue:
+		print "Sending", packet.sender_id, packet.sender_type, packet.sendingDateTime, packet.receivedDateTime
+		if packet.sender_type == SenderType.SERVER:
+			if packet.metadata == "recv from client":
+				multicastMessageToServers(packet.message_type, packet.message_content, packet.sendingDateTime)
+				
+			else:
+				unicastMessage(packet.message_type, packet.message_content, packet.sendingDateTime, packet.metadata)
+				this_server.sending_messages_queue.remove(packet)
+		
+		if packet.sender_type == SenderType.CLIENT:
+			this_server.multicastMessagetoClients(packet.metadata, packet.message_type, packet.sendingDateTime)
+			this_server.sending_messages_queue.remove(packet)

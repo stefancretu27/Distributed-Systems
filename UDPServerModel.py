@@ -27,8 +27,10 @@ class UDPServerModel:
 	discovery_multicast_group = '224.1.1.1'
 	discovery_multicast_port = 12000
 	
-#list of messages 
-	message_queue = list()
+#list of received messages 
+	received_messages_queue = list()
+#list of messages to send
+	sending_messages_queue = list()
 #store all connected clients in a list = client group view	
 	list_of_clients = list()
 

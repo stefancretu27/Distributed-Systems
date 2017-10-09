@@ -4,7 +4,7 @@ import sys
 import socket
 import struct
 import select
-from datetime import datetime
+import datetime
 #import classes
 from MessageUtil import MessageUtil
 from Enum import MessageType,SenderType,MessageContent
@@ -12,6 +12,9 @@ from Enum import MessageType,SenderType,MessageContent
 multicast_group = ('127.0.0.1', int (sys.argv[1])) 
 rec_msg_buffer_size = 2048
 my_joiningdate = None
+
+def getCurrentDateTime():
+	return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 #open socket on same IP (localhost) and using same port
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -21,7 +24,7 @@ client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 ttl = struct.pack('b', 1)
 client_socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
 #send connection message to the server
-client_socket.sendto(MessageUtil.constructMessage(None,SenderType.CLIENT,MessageType.JOINROOM, '', None), multicast_group)
+client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.JOINROOM, '', str(getCurrentDateTime())), multicast_group)
 
 sys.stdout.write('[Me:] '); sys.stdout.flush()
 
@@ -41,7 +44,6 @@ while True:
 			sender_id, sender_type, message_type, message_content, message_datetime = MessageUtil.extractMessage(server_message)
 			if not server_message:
 				print ('disconnected from server')
-				#sys.exit()
 			else:
 				sys.stdout.write('\n')
 				if (sender_type == SenderType.SERVER):
@@ -62,14 +64,14 @@ while True:
 				client_message = sys.stdin.readline()
 				if client_message:
 					if (client_message.strip() == MessageContent.QUIT):
-						client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.LEFTROOM, client_message, None), multicast_group)
+						client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.LEFTROOM, client_message, str(getCurrentDateTime())), multicast_group)
 						client_socket.close()
-						sys.exit();
+						sys.exit(0)
 					else:
-						client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.NORMALCHAT, client_message, None), multicast_group)
-						sys.stdout.write('[Me:] ');
+						client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.NORMALCHAT, client_message, str(getCurrentDateTime())), multicast_group)
+						sys.stdout.write('[Me:] ')
 						sys.stdout.flush()
 			except:
 				print ('The message could not be sent. The socket will close. Type <~q> to exit the application')
-				client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.LEFTROOM, client_message, None), multicast_group)
+				client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, MessageType.LEFTROOM, client_message, str(getCurrentDateTime())), multicast_group)
 				client_socket.close()
