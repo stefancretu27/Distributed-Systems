@@ -177,7 +177,7 @@ socket_list = [this_server.socket, this_server.discovery_socket]
 #set thread and timer
 def thread_decideLeader():
 	#starting thread
-	sleep(60)
+	sleep(10)
 	#Decide the leader or the voting after 20 seconds
 	if(global_info.getServerStatus() == MessageType.SERVERUP):
 		#reset lastsendingmessagedatetime for all servers
@@ -252,7 +252,7 @@ def thread_mainprocess():
 									#set the params of global info
 									global_info.setServerStatus(MessageType.RUNNING)
 									global_info.setCurrentLeader(int(message_content))
-									print("voting done. my global info. server status:", global_info.serverstatus, "the leader is:",global_info.getCurrentLeader())
+									print("Voting done. My current global info is: server status:%s and the leader is %s"%(global_info.serverstatus,str(global_info.getCurrentLeader())))
 
 							else:
 								#create a temporary server model with the received attributes
@@ -281,18 +281,21 @@ def thread_mainprocess():
 
 								#if it is allowed to add new server, then broadcast the message
 								if (allowtoaddnewsever):
-									print ('[Server update] A new server is up. It runs on the address: ' + str(temp_server.getAddress()), global_info.getServerStatus())
+									print ('[Server update] A new server is up. It runs on the address:%s. My global status is %s'%(str(temp_server.getAddress()), global_info.getServerStatus()))
 									#if server is running normally and new server joins the network, then master will exchange the global information
-									print("global_info.getServerStatus()",global_info.getServerStatus(),"this_server.isTheLeader()",this_server.isTheLeader())
+									# print("global_info.getServerStatus()",global_info.getServerStatus(),"this_server.isTheLeader()",this_server.isTheLeader())
 									if (global_info.getServerStatus() == MessageType.RUNNING and this_server.isTheLeader()):
 										print("==========================I am the leader, I will inform the new connected server=================================")
 										#announce that I'm the leader
+										print("Sending client %s the announcement that I'm the leader"%(str(temp_server.port)))
 										unicastMessage(this_server, MessageType.ANNOUNCELEADERAFTERJOIN, str(this_server.port), serverdatetime_received_acknowledgement, temp_server.getAddress())
 
 										#send the list of existing server to the newly added server
+										print("Sending client %s the list of existing servers"%(str(temp_server.port)))
 										unicastMessage(this_server, MessageType.LISTOFEXISTINGSERVERS, getStrListOfConnectedServers(), serverdatetime_received_acknowledgement, temp_server.getAddress())
 
 										#send the newly added server to the multicast groups
+										print("Sending the multicast message to all connected clients telling that the server %s is up and running"%(str(temp_server.port)))
 										this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.NEWSERVER, str(temp_server.port)+"#"+serverdatetime_received_packet, getCurrentServerDateTime()), this_server.getDiscoveryAddress())
 
 										# for ex_server in getActiveServers():
@@ -310,7 +313,7 @@ def thread_mainprocess():
 						else:
 							#if a new server is up
 							if(message_type == MessageType.NEWSERVER):
-								print(message_type, "I got message from",sender_id, message_content)
+								print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 								arr_messagecontent= message_content.split("#")
 								arr_messagecontent_port = int(arr_messagecontent[0])
 								arr_messagecontent_joiningdate = MessageUtil.convertStringToDateTime(arr_messagecontent[1])
@@ -319,12 +322,11 @@ def thread_mainprocess():
 								if (arr_messagecontent_port not in [this_server.port]):
 									newly_added_server = UDPServerModel(localhost,arr_messagecontent_port)
 									newly_added_server.setJoiningDateTime(arr_messagecontent_joiningdate)
-									newly_added_server.setLastSendingMessageDateTime(serverdatetime_received_acknowledgement)
+									newly_added_server.setLastSendingMessageDateTime(MessageUtil.convertStringToDateTime(serverdatetime_received_acknowledgement))
 									newly_added_server.activateServer()
 
 									if newly_added_server.port not in getLitsOfServerPorts():
 										list_of_servers.append(newly_added_server)
-										showConnectedServers(this_server)
 									else:
 										#get existing server and activate its current status to true and update the joiningdatetime and lastsendingmessagedatetime
 										existing_server = getExisitngServerByPort(arr_messagecontent_port)
@@ -334,22 +336,25 @@ def thread_mainprocess():
 
 									#update the sending messagedatetime of the sender
 									updateSenderLastSendingMessageDateTime(sender_id[1], message_datetime)
-									print("New server with port ",newly_added_server.port, " joined the system")
+									print("New server with port %s joined the system"%(str(newly_added_server.port)))
+									showConnectedServers(this_server)
 								else:
 									print("I ignore the message since It's me that up")
 
 							#if slave goes down
 							if (message_type == MessageType.SLAVEDOWN):
-								print(message_type, "I got message from",sender_id, message_content)
+								print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 								#update my server list
 								unavailable_server = getExisitngServerByPort(int(message_content))
 								if (unavailable_server is not None):
 									#update the unvaialable server status to inactive
 									unavailable_server.deactivateServer()
+								print("I have updated my server list.")
+								showConnectedServers(this_server)
 
 							#if there is an announcement of the new leader
 							if (message_type == MessageType.ANNOUNCELEADER):
-								print(message_type, "I got message from",sender_id, message_content)
+								print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 								#remove the previous leader
 								removeTheLeader()
 
@@ -359,7 +364,7 @@ def thread_mainprocess():
 
 								#update the last sending message datetime of the sender
 								updateSenderLastSendingMessageDateTime(sender_id[1], message_datetime)
-								print("my global info. server status:", global_info.serverstatus, "the leader is:",global_info.getCurrentLeader())
+								print("This is my current global info:%s, current leader:%s"%(global_info.getServerStatus(), str(global_info.getCurrentLeader())))
 
 
 			if socket == this_server.socket:
@@ -435,7 +440,7 @@ def thread_mainprocess():
 						serverdatetime_received_acknowledgement = getCurrentServerDateTime()
 
 						if (message_type == MessageType.LISTOFEXISTINGSERVERS):
-							print(message_type, "I got message from",sender_id, message_content)
+							print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 							arr_existing_servers = message_content.split(";")
 
 							for item_arr in arr_existing_servers:
@@ -470,7 +475,7 @@ def thread_mainprocess():
 
 						#if a new client has connected to another server instance, update local list_of_clients
 						if(message_type == MessageType.JOINROOM):
-							print(message_type, "I got message from",sender_id, message_content)
+							print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 							if all(isinstance(elem, list) for elem in message_content):
 								for client_address in message_content:
 								#the message content is the new client's address = ip+port (received as list, not as tuple)
@@ -495,6 +500,7 @@ def thread_mainprocess():
 							this_server.showConnectedClients()
 
 						if(message_type == MessageType.LEFTROOM):
+							print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 							#the message content is the new client's address = ip+port (received as list, not as tuple)
 							message_content[0] = unicodedata.normalize('NFKD', message_content[0]).encode('ascii','ignore')
 							old_client = ClientModel('', (message_content[0], message_content[1]))
@@ -507,14 +513,14 @@ def thread_mainprocess():
 							this_server.showConnectedClients()
 
 						if (message_type == MessageType.ANNOUNCELEADERAFTERJOIN):
-							print(message_type, "I got message from",sender_id, message_content)
+							print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 							#set the params of global info
 							global_info.setServerStatus(MessageType.RUNNING)
 							global_info.setCurrentLeader(int(message_content))
 
 							#update the last sending message datetime of the sender
 							updateSenderLastSendingMessageDateTime(sender_id[1], message_datetime)
-							print("my global info. server status:", global_info.serverstatus, "the leader is:",global_info.getCurrentLeader())
+							print("This is my current global info:%s, current leader:%s"%(global_info.getServerStatus(), str(global_info.getCurrentLeader())))
 
 
 						if (this_server.isTheLeader() and message_type == MessageType.PINGTHELEADER):
@@ -530,7 +536,7 @@ def thread_mainprocess():
 							updateSenderLastSendingMessageDateTime(sender_id[1], message_datetime)
 
 						if (message_type == MessageType.VOTING):
-							print(message_type, "I got message from",sender_id, message_content)
+							print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 
 							#if the leader has been changed
 							if (int(message_content) == global_info.getCurrentLeader()):
@@ -561,27 +567,27 @@ def thread_mainprocess():
 							updateSenderLastSendingMessageDateTime(sender_id[1], message_datetime)
 
 						if (message_type == MessageType.ACKNOWLEDGEMENTVOTING):
-							print(message_type, "I got message from",sender_id, message_content, " and now I am changing my status to acknowlegement")
+							print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 							global_info.setServerStatus(MessageType.ACKNOWLEDGEMENTVOTING)
 							#update the last sending message datetime of the sender
 							updateSenderLastSendingMessageDateTime(sender_id[1], message_datetime)
 
 
 						if (message_type == MessageType.PAUSERUNNING):
-							print(message_type, "I got message from",sender_id, message_content, " therefore I am freezing now")
+							print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 							global_info.setServerStatus(MessageType.PAUSERUNNING)
 							#update the last sending message datetime of the sender
 							updateSenderLastSendingMessageDateTime(sender_id[1], message_datetime)
 
 						if (message_type == MessageType.PINGTHESLAVE):
-							print(message_type, "I got message from",sender_id, message_content, " therefore I am freezing now")
+							print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 							#I will reply it
 							unicastMessage(this_server, MessageType.ACKNOWLEDGEMENTPINGTHESLAVE, "", getCurrentServerDateTime(), received_address)
 							#update the last sending message datetime of the sender
 							updateSenderLastSendingMessageDateTime(sender_id[1], message_datetime)
 
 						if (message_type == MessageType.ACKNOWLEDGEMENTPINGTHESLAVE):
-							print(message_type, "I got message from",sender_id, message_content, " therefore I am freezing now")
+							print("I got message from %s with message type %s and the content is %s"%(str(sender_id[1]),message_type, message_content))
 							#update the last sending message datetime of the sender
 							updateSenderLastSendingMessageDateTime(sender_id[1], message_datetime)
 
@@ -623,7 +629,7 @@ def thread_launch_election():
 					#double check again
 					second_theleaderlastdatetimesendingmessage = getTheLeader().getLastSendingMessageDateTime()
 					second_delta = (MessageUtil.convertStringToDateTime(getCurrentServerDateTime()) - second_theleaderlastdatetimesendingmessage).total_seconds()
-					print("second delta:", second_delta)
+					print("second delta %s"%str(second_delta))
 
 					#again, compare delta value with its maximum
 					if (second_delta > ConstantValues.DELTAMAX):
@@ -644,7 +650,7 @@ def thread_launch_election():
 
 							#announce that I'm the leader by sending message to multicast group
 							this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.ANNOUNCELEADER, str(this_server.port), getCurrentServerDateTime()), this_server.getDiscoveryAddress())
-							print("I am the leader now and this is my global info:", global_info.getServerStatus(), global_info.getCurrentLeader())
+							print("I am the leader now and this is my global info:%s , %s"%(global_info.getServerStatus(), str(global_info.getCurrentLeader())))
 						#launch election to the servers who have the higher port than me
 						else:
 							#if my status still pause running and other servers don't send anything yet, then I'll launch the election
@@ -657,12 +663,12 @@ def thread_launch_election():
 								for server_item in sorted_list_of_server_by_port:
 									#send unicast message to the highest ports
 									if (server_item.port > this_server.port):
-										print("sending unicast message to:", server_item.port, " (first attempt)")
+										print("sending unicast message to %s (first attempt)"%(str(server_item.port)))
 										unicastMessage(this_server, MessageType.VOTING, str(global_info.getCurrentLeader()), getCurrentServerDateTime(), server_item.getAddress())
 									#send the other server to stop working
 									else:
 										if (server_item.port < this_server.port):
-											print("sending unicast message to:", server_item.port, " tell them to stop working for a moment")
+											print("sending unicast message to %s tell them to stop working for a moment"%(str(server_item.port)))
 											unicastMessage(this_server, MessageType.PAUSERUNNING, str(global_info.getCurrentLeader()), getCurrentServerDateTime(), server_item.getAddress())
 								#wait for 20 seconds
 								sleep(20)
@@ -672,7 +678,7 @@ def thread_launch_election():
 									for server_item in sorted_list_of_server_by_port:
 										#re-send unicast message to the highest ports
 										if (server_item.port > this_server.port):
-											print("resending unicast message to:", server_item.port, " since the serverr dont reply (second attempt)")
+											print("resending unicast message to %s since the server(s) who has the higher port than me dont reply (second attempt)"%(server_item.port))
 											unicastMessage(this_server, MessageType.VOTING, str(global_info.getCurrentLeader()), getCurrentServerDateTime(), server_item.getAddress())
 
 								sleep(20)
@@ -692,7 +698,7 @@ def thread_launch_election():
 
 									#set server status and global status
 									global_info.setServerStatus(MessageType.RUNNING)
-									print("This is my current global info:", global_info.getServerStatus(), global_info.getCurrentLeader())
+									print("This is my current global info:%s, current leader:%s"%(global_info.getServerStatus(), str(global_info.getCurrentLeader())))
 						showConnectedServers(this_server)
 		except:
 			print("Do not worry, it is going to be fine")
@@ -708,7 +714,7 @@ def thread_ping_slave(port):
 	#get the first delta of existing server
 	first_theslavelastdatetimesendingmessage = existing_slave.getLastSendingMessageDateTime()
 	first_delta = (MessageUtil.convertStringToDateTime(getCurrentServerDateTime()) - first_theslavelastdatetimesendingmessage).total_seconds()
-	print("checking the slave status", port,"first delta:", first_delta)
+	print("checking the slave status %s, first delta:%s"%(str(port),str(first_delta)))
 
 	#compare delta value with its maximum
 	if (first_delta > ConstantValues.DELTAMAX):
@@ -718,7 +724,7 @@ def thread_ping_slave(port):
 		#get the second delta of existing server
 		second_theslavelastdatetimesendingmessage = getExisitngServerByPort(port).getLastSendingMessageDateTime()
 		second_delta = (MessageUtil.convertStringToDateTime(getCurrentServerDateTime()) - second_theslavelastdatetimesendingmessage).total_seconds()
-		print("checking the slave status", port,"first delta:", second_delta)
+		print("checking the slave status %s, second delta:%s"%(str(port),str(second_delta)))
 
 		#again, compare delta value with its maximum
 		if (second_delta > ConstantValues.DELTAMAX):
@@ -726,10 +732,8 @@ def thread_ping_slave(port):
 			getExisitngServerByPort(port).deactivateServer()
 
 			#send unicast message to all other slaves
-			for ex_server in getActiveServers():
-				if (ex_server.port is not this_server.port):
-					this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SLAVEDOWN, str(port), getCurrentServerDateTime()), this_server.getDiscoveryAddress())
-			print("server", port, " is going down. The multicast message has been sent to the other servers")
+			this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SLAVEDOWN, str(port), getCurrentServerDateTime()), this_server.getDiscoveryAddress())
+			print("server %s is going down. The multicast message has been sent to the other servers"%(str(port)))
 
 
 #check wether the slave is alive
