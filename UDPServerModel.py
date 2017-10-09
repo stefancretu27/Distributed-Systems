@@ -5,31 +5,35 @@ import struct
 from ClientModel import ClientModel
 from MessageUtil import MessageUtil
 from Enum import MessageType,SenderType
-from DataPacketModel import DataPacketModel
 
 #use UDP socket: it is connectionless and does not guarantee the data delivery. A packet is built with destination information and then is sent
 class UDPServerModel:
 #a server is identified based on its ip and port
 	ip = None
 	port = None
-#joining datetime
-	joiningdatetime = None
-	
-#used for the other connected servers, to count how much time has passed since last message. Contatins the datetime when the message was sent by a server
-	lastsendingmessagedatetime = None
-	
 #socket object used for communication with clients and to update the other servers with newest client info (general socket)
 	socket = None
+
 #socket object used for discovery and fault tolerance
 	discovery_socket = None
-	
 #dynamic discovery global data
 	discovery_multicast_group = '224.1.1.1'
 	discovery_multicast_port = 12000
-	
-#list of messages 
-	message_queue = list()
-#store all connected clients in a list = client group view	
+
+#message
+	message = None
+
+#joining datetime
+	joiningdatetime = None
+
+#last sending message datetime
+	lastsendingmessagedatetime = None
+
+#leader status
+	istheleader = False
+#server_status
+	isactive = False
+#store all connected clients in a global list	
 	list_of_clients = list()
 
 #Methods
@@ -55,6 +59,14 @@ class UDPServerModel:
 		self.joiningdatetime = new_joiningdatetime
 	def setLastSendingMessageDateTime(self, new_lastsendingmessagedatetime):
 		self.lastsendingmessagedatetime = new_lastsendingmessagedatetime
+	def activateTheRoleAsTheLeader(self):
+		self.istheleader = True
+	def deactivateTheRoleAsTheLeader(self):
+		self.istheleader = False
+	def activateServer(self):
+		self.isactive = True
+	def deactivateServer(self):
+		self.isactive = False
 
 #getters
 	#build ID
@@ -73,6 +85,10 @@ class UDPServerModel:
 	def getLastSendingMessageDateTime(self):
 		return (self.lastsendingmessagedatetime)
 
+	def isTheLeader(self):
+		return (self.istheleader)
+	def isActive(self):
+		return (self.isactive)
 	#method for setting the communication on the general socket
 	def openSocket(self):
 		#create UDP socket
@@ -94,6 +110,7 @@ class UDPServerModel:
 		# Tell the operating system to add the socket to the multicast group on all interfaces.
 		self.discovery_socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
+
 #list of clients related operations
 	#for various reasons a client will disconnect => update the list of clients
 	def disconnectClient(self, this_client):
@@ -107,7 +124,7 @@ class UDPServerModel:
 			for client in self.list_of_clients:
 				print ("   ",(client.address))
 		else:
-			print ('[Client update] Currently, no clients are connected in the system')
+			print ('[Client update] No clients are currently connected in the system')
 	#search if a client is connected	
 	def isClientInList(self, this_client):
 		for client in self.list_of_clients:
