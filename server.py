@@ -116,8 +116,10 @@ while True:
 				#add packet in message queue
 				if temp_packet not in this_server.received_messages_queue:
 					this_server.received_messages_queue.append(temp_packet)
-			#if received own message, remove it from the sending queue
+			#if received own message, verify if the other received it, before remove it from the sending queue
 			else:
+				#check if the other servers sent an ACK
+				
 				#remove processed packet from the received_messages_queue
 				if this_server.sending_messages_queue:
 					if temp_packet in this_server.sending_messages_queue:
@@ -147,20 +149,31 @@ while True:
 	for packet in this_server.received_messages_queue:
 		#print packet.sendingDateTime
 		#if a packet was sent by a server
-		if(temp_packet.sender_type == SenderType.SERVER):
+		if(packet.sender_type == SenderType.SERVER):
 			#create a temporary server model with the received attributes
 			temp_server = UDPServerModel(localhost, temp_packet.sender_id)
 			#this server records the time of the last received packet from any servers connected in the multicast group. Actually, it is the time the packet was sent
 			temp_server.setLastSendingMessageDateTime(MessageUtil.convertStringToDateTime(str(packet.sendingDateTime)))
 			
+			#For each received message, that is not acknowledgement, inform the sender server that its message was received \
+			#by building a similar packet but with mesage type = RECEIVEDMESAGE. Then, it is unicasted to the sender
+			if(packet.message_type != MessageType.RECEIVEDVMESAGE):
+				#set time when ack message is issued
+				sending_packet = DataPacketModel(getCurrentServerDateTime())
+				sending_packet.buildPacket(temp_server.getAddress(), SenderType.SERVER, MessageType.RECEIVEDVMESAGE, packet.message_content, packet.sendingDateTime, this_server.port)
+				this_server.sending_messages_queue.append(sending_packet)
+			
+			#Handle acknowledgements from other servers. This hapeens whena message is issued
+			#if(packet.message_type == MessageType.RECEIVEDVMESAGE):
+			
 			###for the time being, this verification is redundant, since all servers sent SERVERUP continuously but not other message type. 
-			if(temp_packet.message_type == MessageType.SERVERUP and packet.message_type != MessageType.JOINROOM and packet.message_content != None):
+			if(packet.message_type == MessageType.SERVERUP ):
 				#If the server that sent the message is not in this server's group view, add it (remove duplicate message tactic)
 				if temp_server not in list_of_servers:
 					#Each time a SERVERUP message is sent, it's content has the jointime of the server which sent the packet. 
 					#Now, for temp_server, the joiningDateTime  = lastSendingMessageTime
 					print "ServerUp", packet.receivedDateTime, packet.message_content 
-					temp_server.setJoiningDateTime(MessageUtil.convertStringToDateTime(str(packet.message_content)))
+					temp_server.setJoiningDateTime(MessageUtil.convertStringToDateTime(packet.message_content))
 					list_of_servers.append(temp_server)
 					print ('[Server update] A server is up. It runs on the address: ' + str(temp_server.getAddress()))
 
@@ -185,8 +198,9 @@ while True:
 					#inform the admin about the current connected servers (inform that the list of servers has been updated)
 					print ('[Server update] The current running servers are:')
 					showConnectedServers()		
+			
 			#If a new client has connected to another server instance or if this_server joined later, it gets the attributes of the client(s) from the other servers	
-			elif(packet.message_type == MessageType.JOINROOM):
+			if(packet.message_type == MessageType.JOINROOM):
 				#If this_server joined later, it gets a list of more clients as message_content
 				if all(isinstance(elem, list) for elem in packet.message_content):
 					for client_address in packet.message_content:
@@ -217,7 +231,8 @@ while True:
 				#show to admin all connected clients	
 				print ('[Client update] The currently connected clients in the system are:')
 				this_server.showConnectedClients()
-			elif(packet.message_type == MessageType.LEFTROOM):
+			
+			if(packet.message_type == MessageType.LEFTROOM):
 				#the message content is the new client's address = ip+port (received as list, not as tuple)
 				msg_content = packet.message_content
 				if isinstance(packet.message_content, unicode):
@@ -311,7 +326,7 @@ while True:
 	#this_server.sending_messages_queue.sort(key=lambda packet: packet.sendingDateTime)	
 	
 	for packet in this_server.sending_messages_queue:
-		print "Sending", packet.sender_id, packet.sender_type, packet.sendingDateTime, packet.receivedDateTime
+		#print "Sending", packet.sender_id, packet.sender_type, packet.sendingDateTime, packet.receivedDateTime
 		if packet.sender_type == SenderType.SERVER:
 			if packet.metadata == "recv from client":
 				multicastMessageToServers(packet.message_type, packet.message_content, packet.sendingDateTime)
