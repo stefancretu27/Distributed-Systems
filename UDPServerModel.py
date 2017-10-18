@@ -110,6 +110,8 @@ class UDPServerModel:
 		# Tell the operating system to add the socket to the multicast group on all interfaces.
 		self.discovery_socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
+	def closeSocket(self):
+		self.socket.close()
 
 #list of clients related operations
 	#for various reasons a client will disconnect => update the list of clients
