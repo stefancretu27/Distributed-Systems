@@ -192,7 +192,7 @@ socket_list = [this_server.socket, this_server.discovery_socket]
 
 
 #set thread and timer
-def thread_decideLeader():
+def thread_decidetheleader():
 	global alreadysentmessage,isabletopingtheleader,checktheleader
 	#starting thread
 	sleep(15)
@@ -440,7 +440,7 @@ def thread_mainprocess():
 								#update the last sending message datetime of the sender
 								updateSenderLastSendingMessageDateTime(sender_port, message_datetime)
 
-							#if server sent heart beat
+							#if server sent its heart beat
 							if ((global_info.getServerStatus() in [MessageType.RUNNING, MessageType.VOTING, MessageType.PAUSERUNNING]) and message_type == MessageType.HEARTBEAT):
 								#print("I got message from %s with message type %s and the content is %s"%(str(sender_port),message_type, message_content))
 								#update the last sending message datetime of the sender
@@ -648,7 +648,7 @@ def thread_mainprocess():
 							updateSenderLastSendingMessageDateTime(sender_id[1], message_datetime)
 
 isAbleToSendHeartBeat = True
-def thread_sending_heart_beat():
+def thread_sendheartbeat():
 	global isAbleToSendHeartBeat
 	while True:
 		if (isAbleToSendHeartBeat):
@@ -660,20 +660,20 @@ def thread_sending_heart_beat():
 			isAbleToSendHeartBeat = True
 
 
-#check wether the server is alive
-def thread_checking_servers():
+#check whether the server is alive
+def thread_checkservers():
 	while True:
 		if (global_info.getServerStatus() == MessageType.RUNNING):
 			for server in getActiveServers():
 				if server.port != this_server.port:
-					#create new thread to chek other server
-					thread_server = Thread(target=thread_checking_each_server, args=(server.port,))
+					#create new thread to check each server
+					thread_server = Thread(target=thread_checkeachserver, args=(server.port,))
 					thread_server.start()
 					thread_server.join()
 
-#ping the slave
-def thread_checking_each_server(port):
-	#get exisiting slave
+#ping each server
+def thread_checkeachserver(port):
+	#get exisiting server
 	existing_server = getExisitngServerByPort(port)
 	#get the first delta of existing server
 	first_datetimesendingmessage = existing_server.getLastSendingMessageDateTime()
@@ -688,14 +688,14 @@ def thread_checking_each_server(port):
 		second_delta = (MessageUtil.convertStringToDateTime(getCurrentServerDateTime()) - second_datetimesendingmessage).total_seconds()
 		print("checking server status %s, second delta:%s"%(str(port),str(second_delta)))
 
-		#again, compare delta value with its maximum
+		#again, compare delta value with its maximum threshold
 		if (second_delta > ConstantValues.DELTAMAX and getExisitngServerByPort(port).isActive()):
 			#get the existing server
 			existingserver = getExisitngServerByPort(port)
 			if (existingserver is not None):
 				if (existingserver.port == global_info.getCurrentLeader()):
 					#launch leader election
-					launch_election(existingserver.port)
+					launchElection(existingserver.port)
 				else:
 					#inform servers in multicast group that someone crash
 
@@ -706,8 +706,8 @@ def thread_checking_each_server(port):
 					this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SLAVEDOWN, str(existingserver.port), getCurrentServerDateTime()), this_server.getDiscoveryAddress())
 					print("server %s is going down. The multicast message has been sent to the other servers"%(str(port)))
 
-
-def launch_election(port):
+#method to launch an election
+def launchElection(port):
 		try:
 			#set current status to voting
 			global_info.setServerStatus(MessageType.PAUSERUNNING)
@@ -729,7 +729,7 @@ def launch_election(port):
 				global_info.setServerStatus(MessageType.RUNNING)
 				print("I am the leader now and this is my global info:%s , %s"%(global_info.getServerStatus(), str(global_info.getCurrentLeader())))
 
-			#otherwise, launch election to the servers who have the higher port than me
+			#otherwise, launch election
 			else:
 				#if my status still pause running and other servers don't send anything yet, then I'll launch the election
 				if (global_info.getServerStatus() == MessageType.PAUSERUNNING):
@@ -756,15 +756,15 @@ def launch_election(port):
 		except:
 			print("Do not worry, it is going to be fine")
 
-t1 = Thread(target=thread_mainprocess, args=())
+t1 = Thread(target= thread_mainprocess, args=())
 t1.start()
 
-t2 = Thread(target = thread_decideLeader, args = ())
+t2 = Thread(target = thread_decidetheleader, args = ())
 t2.start()
 t2.join()
 
-t3 = Thread(target=thread_sending_heart_beat, args=())
+t3 = Thread(target= thread_sendheartbeat, args=())
 t3.start()
 
-t4 = Thread(target=thread_checking_servers, args=())
+t4 = Thread(target= thread_checkservers, args=())
 t4.start()
