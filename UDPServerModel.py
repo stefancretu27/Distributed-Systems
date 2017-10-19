@@ -27,7 +27,9 @@ class UDPServerModel:
 	discovery_multicast_group = '224.1.1.1'
 	discovery_multicast_port = 12000
 	
-#list of received messages 
+#list of received messages to be processed and then removed
+	message_buffer = list()
+#list of received messages. It acts like a message log, as the duplicate messages are rejected and the existing messages are not removed 
 	received_messages_queue = list()
 #list of messages to send
 	sending_messages_queue = list()
@@ -144,9 +146,9 @@ class UDPServerModel:
 		for client in self.list_of_clients:
 			if (client == this_client):
 				if (message_type == MessageType.JOINROOM):
-					self.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, MessageType.ACKNOWLEDGEFROMSERVER, this_client.getJoiningDateTime(), multicast_datetime), client.address)
+					self.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, -1, MessageType.ACKNOWLEDGEFROMSERVER, this_client.getJoiningDateTime(), multicast_datetime), client.address)
 			else:
-				self.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, message_type, multicast_message, multicast_datetime), client.address)
+				self.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, -1, message_type, multicast_message, multicast_datetime), client.address)
 
 	def getConnectedClientsAddresses(self):
 		if self.list_of_clients:
