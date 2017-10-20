@@ -10,5 +10,5 @@ PINGTHESLAVE='pingtheslave',ACKNOWLEDGEMENTPINGTHESLAVE='acknowldegementpingthes
 ACKNOWLEDGEMENTFROMALIVESERVER='acknowledgementfromaliveserver',LISTOFSERVERUPDATED='listofserverupdated', REQUESTLISTOFSERVER = 'requestlistofserver',SERVERBUSY='serverbusy', \
 DECIDINGTHELEADER='decidingtheleader', HEARTBEAT='heartbeat', RECEIVEDMESSAGE='receivedmessage')
 SenderType = enum(CLIENT='client', SERVER='server')
-MessageContent = enum(QUIT='~q',ACTIVE='0',INACTIVE='1')
+MessageContent = enum(QUIT='~q',SERVERALIVE='0',SERVERCRASH='1')
 ConstantValues = enum(DELTAMAX=30)
