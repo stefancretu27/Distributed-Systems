@@ -29,9 +29,6 @@ class UDPServerModel:
 	
 #leader status
 	istheleader = False
-#server_status
-	isactive = False
-	
 #list of received messages to be processed and then removed
 	message_buffer = list()
 #list of received messages. It acts like a message log, as the duplicate messages are rejected and the existing messages are not removed 
@@ -68,10 +65,6 @@ class UDPServerModel:
 		self.istheleader = True
 	def deactivateTheRoleAsTheLeader(self):
 		self.istheleader = False
-	def activateServer(self):
-		self.isactive = True
-	def deactivateServer(self):
-		self.isactive = False
 
 #getters
 	#build ID
@@ -92,8 +85,6 @@ class UDPServerModel:
 
 	def isTheLeader(self):
 		return (self.istheleader)
-	def isActive(self):
-		return (self.isactive)
 
 	#method for setting the communication on the general socket
 	def openSocket(self):
