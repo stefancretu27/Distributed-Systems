@@ -27,6 +27,11 @@ class UDPServerModel:
 	discovery_multicast_group = '224.1.1.1'
 	discovery_multicast_port = 12000
 	
+#leader status
+	istheleader = False
+#server_status
+	isactive = False
+	
 #list of received messages to be processed and then removed
 	message_buffer = list()
 #list of received messages. It acts like a message log, as the duplicate messages are rejected and the existing messages are not removed 
@@ -59,6 +64,14 @@ class UDPServerModel:
 		self.joiningdatetime = new_joiningdatetime
 	def setLastSendingMessageDateTime(self, new_lastsendingmessagedatetime):
 		self.lastsendingmessagedatetime = new_lastsendingmessagedatetime
+	def activateTheRoleAsTheLeader(self):
+		self.istheleader = True
+	def deactivateTheRoleAsTheLeader(self):
+		self.istheleader = False
+	def activateServer(self):
+		self.isactive = True
+	def deactivateServer(self):
+		self.isactive = False
 
 #getters
 	#build ID
@@ -76,6 +89,11 @@ class UDPServerModel:
 
 	def getLastSendingMessageDateTime(self):
 		return (self.lastsendingmessagedatetime)
+
+	def isTheLeader(self):
+		return (self.istheleader)
+	def isActive(self):
+		return (self.isactive)
 
 	#method for setting the communication on the general socket
 	def openSocket(self):
@@ -97,6 +115,9 @@ class UDPServerModel:
 		mreq = struct.pack('4sL', group, socket.INADDR_ANY)
 		# Tell the operating system to add the socket to the multicast group on all interfaces.
 		self.discovery_socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+		
+	def closeSocket(self):
+		self.socket.close()
 
 #list of clients related operations
 	#for various reasons a client will disconnect => update the list of clients
