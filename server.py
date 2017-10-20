@@ -24,6 +24,18 @@ from Enum import MessageType,SenderType,ConstantValues,MessageContent
 from MessageHistoryModel import MessageHistoryModel
 from GlobalInfo import GlobalInfo
 
+sending_message_list_lock = Lock()
+
+isabletopingtheleader = True
+checktheleader = True
+alreadysentmessage = False
+
+#store the info about the servers. It includes all servers (also self)
+list_of_servers = list()
+
+#create global info
+global_info = GlobalInfo()
+
 def compareOrderedLists(l1, l2):
 	return l1==l2
 
@@ -159,15 +171,30 @@ def updateSenderLastSendingMessageDateTime(_port, _lastsendingmessagedatetime):
 		if (sender_server is not None):
 			sender_server.setLastSendingMessageDateTime(MessageUtil.convertStringToDateTime(_lastsendingmessagedatetime))
 
-isabletopingtheleader = True
-checktheleader = True
-alreadysentmessage = False
-
-#store the info about the servers. It includes all servers (also self)
-list_of_servers = list()
-
-#create global info
-global_info = GlobalInfo()
+def sending_message(global_lock):
+	for packet in this_server.sending_messages_queue:
+		if (packet.sender_type == SenderType.SERVER):
+			if packet.metadata == "recv from client" or packet.metadata == "voting":
+				multicastMessageToServers(packet.message_id, packet.message_type, packet.message_content, packet.sendingDateTime)
+					
+				#if all servers in the group view received the message, removed the message from the list. Valid only for IP server multicast
+				packet.list_of_receivers.sort(key=lambda server: server.port)
+						
+				if list_of_servers == packet.list_of_receivers:
+					#global_lock.acquire()
+					this_server.sending_messages_queue.remove(packet)
+					#global_lock.release()
+				print "Servers", [server.port for server in list_of_servers]
+				print "Receivers", [server.port for server in packet.list_of_receivers]
+					
+			else:
+				unicastMessage(packet.message_id, packet.message_type, packet.message_content, packet.sendingDateTime, packet.metadata)
+				this_server.sending_messages_queue.remove(packet)
+			
+		if (packet.sender_type == SenderType.CLIENT):
+			this_server.multicastMessagetoClients(packet.metadata, packet.message_type, packet.sendingDateTime)
+			this_server.sending_messages_queue.remove(packet)
+		#global_lock.release()
 
 #set message buffer size
 message_buffer_size = 2048
@@ -191,8 +218,6 @@ this_server.initializeDiscoverySocket()
 this_server.openSocket()
 #append this_server instance to its own list of servers
 list_of_servers.append(this_server)
-#
-global_lock = Lock()
 
 #inform the admin that this server is up
 print('[Server update] Server is starting up on %s port %s' % (this_server.ip, this_server.port))	
@@ -201,8 +226,8 @@ print('[Server update] Server is starting up on %s port %s' % (this_server.ip, t
 socket_list = [this_server.socket, this_server.discovery_socket]
 
 #set thread and timer
-def thread_decidetheleader():
-	global alreadysentmessage, isabletopingtheleader, checktheleader, sent_message_id, this_server, list_of_servers, global_info, global_lock
+def thread_decidetheleader(global_lock):
+	global alreadysentmessage, isabletopingtheleader, checktheleader, sent_message_id, this_server, list_of_servers, global_info
 	#starting thread
 	sleep(10)
 
@@ -242,10 +267,10 @@ def thread_decidetheleader():
 				sent_message_id += 2
 				temp_msg_content = str(sorted_list_of_server_by_port[0].port)+"#"+str(servercrash)
 				voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.DECLARETHELEADER, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
-				lock.acquire()
-				while voting_packet not in this_server.sending_messages_queue:
-					this_server.sending_messages_queue.append(voting_packet)
-				lock.release()
+				
+				global_lock.acquire()
+				this_server.sending_messages_queue.append(voting_packet)
+				global_lock.release()
 
 				#update my status
 				global_info.setServerStatus(MessageType.RUNNING)
@@ -267,15 +292,14 @@ def thread_decidetheleader():
 				theleader = this_server
 				print("I am the leader now, and I will announce the message to everyone")
 				#tell everyone that I am the leader
-				voting_packet2 = DataPacketModel(getCurrentServerDateTime())
+				voting_packet = DataPacketModel(getCurrentServerDateTime())
 				sent_message_id += 2
 				temp_msg_content = str(sorted_list_of_server_by_port[0].port)+"#"+str(servercrash)
-				voting_packet2.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.DECLARETHELEADER, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
-				lock.acquire()
-				while voting_packet2 not in this_server.sending_messages_queue:
-					this_server.sending_messages_queue.append(voting_packet2)
-				lock.release()
+				voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.DECLARETHELEADER, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
 
+				global_lock.acquire()
+				this_server.sending_messages_queue.append(voting_packet)
+				global_lock.release()
 			else:
 				print("I don't have a chance to be the leader. So, I will update my leader with the existing one : %s"%(str(theleader.port)))
 
@@ -283,13 +307,16 @@ def thread_decidetheleader():
 			theleader.activateTheRoleAsTheLeader()
 			global_info.setServerStatus(MessageType.RUNNING)
 			global_info.setCurrentLeader(theleader.port)
+			
+		sending_message(global_lock)
+			
 	except:
 		e = sys.exc_info()[0]
 		print("Do not worry, it is going to be fine", e)
 	finally:
 		print("the leader:", global_info.getCurrentLeader(), ", server status:", global_info.getServerStatus(), ", am i the leader?",this_server.isTheLeader())
 
-def thread_mainprocess():
+def thread_mainprocess(global_lock):
 	global alreadysentmessage, sent_message_id, this_server, list_of_servers, global_info 
 	while True:
 		read_sockets, write_sockets, error_sockets = select.select([], socket_list, [])
@@ -379,8 +406,11 @@ def thread_mainprocess():
 				if(packet.message_type != MessageType.RECEIVEDMESSAGE and packet.message_type != MessageType.SERVERUP):
 					#set time when ack message is issued
 					sending_packet = DataPacketModel(getCurrentServerDateTime())
-					sending_packet.buildPacket(temp_server.getAddress(), SenderType.SERVER, packet.message_id + 1, MessageType.RECEIVEDMESSAGE, packet.message_content, packet.sendingDateTime, this_server.port)
+					sending_packet.buildPacket(temp_server.getAddress(), SenderType.SERVER, packet.message_id + 1, MessageType.RECEIVEDMESSAGE, packet.message_content, \
+					packet.sendingDateTime, this_server.port)
+					global_lock.acquire()
 					this_server.sending_messages_queue.append(sending_packet)
+					global_lock.release()
 				
 				#Handle acknowledgements from other servers. 
 				if(packet.message_type == MessageType.RECEIVEDMESSAGE):
@@ -530,9 +560,10 @@ def thread_mainprocess():
 							sent_message_id += 2
 							temp_msg_content = str(this_server.port)
 							voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.ANNOUNCELEADER, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
+							
+							global_lock.acquire()
 							this_server.sending_messages_queue.append(voting_packet)
-							#this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.ANNOUNCELEADER, \
-							#str(this_server.port), getCurrentServerDateTime()), this_server.getDiscoveryAddress())
+							global_lock.release()
 							print("I'm the leader now since I have the highest port over the others. I will multicast this message")
 					else:
 						#get server by port
@@ -558,8 +589,6 @@ def thread_mainprocess():
 					#request list of server
 					print("I request list of the servers to the group. My global status is %s"%(global_info.getServerStatus()))
 					multicastMessageToServers(-3, MessageType.REQUESTLISTOFSERVER, "req list of servers", getCurrentServerDateTime())
-					#this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.REQUESTLISTOFSERVER, '', \
-					#getCurrentServerDateTime()), this_server.getDiscoveryAddress())
 
 				if (global_info.getServerStatus() == MessageType.SERVERUP and packet.message_type == MessageType.SERVERBUSY):
 					#set already sent message to true
@@ -699,14 +728,17 @@ def thread_mainprocess():
 					#server_packet.list_of_receivers = list()
 					sent_message_id += 2
 					server_packet.buildPacket("recv from client", SenderType.SERVER, sent_message_id, MessageType.JOINROOM, packet.sender_address, packet.receivedDateTime, this_server.port)
-					#send message to the other server instances to inform them that a new client has connected as they need to update their client group view
-					this_server.sending_messages_queue.append(server_packet)
 					
 					#build a packet
 					client_packet = DataPacketModel(getCurrentServerDateTime())
 					client_packet.buildPacket(temp_client, SenderType.CLIENT, -1, MessageType.JOINROOM, packet.sender_address, packet.receivedDateTime, this_server.port)
+					
+					global_lock.acquire()
+					#send message to the other server instances to inform them that a new client has connected as they need to update their client group view
+					this_server.sending_messages_queue.append(server_packet)
 					#send message to the other connected clients
 					this_server.sending_messages_queue.append(client_packet)
+					global_lock.release()
 					
 				#If the client quit the chat, the client application sends a 'quit' message.
 				if (packet.message_type == MessageType.LEFTROOM):
@@ -720,14 +752,17 @@ def thread_mainprocess():
 						#server_packet.list_of_receivers = list()
 						sent_message_id += 2
 						server_packet.buildPacket("recv from client", SenderType.SERVER, sent_message_id, MessageType.LEFTROOM, packet.sender_address, packet.receivedDateTime, this_server.port)
-						#send message to the other server instances to inform them that a new client has left as they need to update their client group view
-						this_server.sending_messages_queue.append(server_packet)
 						
 						#build a packet
 						client_packet = DataPacketModel(getCurrentServerDateTime())
 						client_packet.buildPacket(temp_client, SenderType.CLIENT, -1, MessageType.LEFTROOM, packet.sender_address, packet.receivedDateTime, this_server.port)
+						
+						global_lock.acquire()
+						#send message to the other server instances to inform them that a new client has left as they need to update their client group view
+						this_server.sending_messages_queue.append(server_packet)
 						#send message to the other connected clients
 						this_server.sending_messages_queue.append(client_packet)
+						global_lock.release()
 					
 						#Remove this client from the list of clients
 						this_server.list_of_clients = this_server.disconnectClient(temp_client)
@@ -754,36 +789,17 @@ def thread_mainprocess():
 						client_packet = DataPacketModel(getCurrentServerDateTime())
 						#this_server.multicastMessagetoClients(temp_client, MessageType.NORMALCHAT, packet.receivedDateTime)
 						client_packet.buildPacket(temp_client, SenderType.CLIENT, -1, MessageType.NORMALCHAT, packet.sender_address, packet.receivedDateTime, this_server.port)
+						
+						global_lock.acquire()
 						#send message to the other connected clients
 						this_server.sending_messages_queue.append(client_packet)
+						global_lock.release()
 
 			#remove processed packet from the received_messages_queue
 			this_server.message_buffer.remove(packet)
-			
-		#this_server.sending_messages_queue.sort(key=lambda packet: packet.sendingDateTime)	
 		
-		for packet in this_server.sending_messages_queue:
-			if (packet.sender_type == SenderType.SERVER):
-				print packet.message_id, packet.message_type, packet.sender_id, packet.message_content
-				if packet.metadata == "recv from client" or packet.metadata == "voting":
-					multicastMessageToServers(packet.message_id, packet.message_type, packet.message_content, packet.sendingDateTime)
-					
-					#if all servers in the group view received the message, removed the message from the list. Valid only for IP server multicast
-					packet.list_of_receivers.sort(key=lambda server: server.port)
-						
-					if list_of_servers == packet.list_of_receivers:
-						this_server.sending_messages_queue.remove(packet)
-					print "Servers", [server.port for server in list_of_servers]
-					print "Receivers", [server.port for server in packet.list_of_receivers]
-					
-				else:
-					unicastMessage(packet.message_id, packet.message_type, packet.message_content, packet.sendingDateTime, packet.metadata)
-					this_server.sending_messages_queue.remove(packet)
+		sending_message(global_lock)	
 			
-			if (packet.sender_type == SenderType.CLIENT):
-				this_server.multicastMessagetoClients(packet.metadata, packet.message_type, packet.sendingDateTime)
-				this_server.sending_messages_queue.remove(packet)
-
 ########################################################################
 isAbleToSendHeartBeat = True
 def thread_sendheartbeat():
@@ -801,18 +817,18 @@ def thread_sendheartbeat():
 
 
 #check whether the server is alive
-def thread_checkservers():
+def thread_checkservers(global_lock):
 	while True:
 		if (global_info.getServerStatus() == MessageType.RUNNING):
 			for server in getActiveServers():
 				if server.port != this_server.port:
 					#create new thread to check each server
-					thread_server = Thread(target=thread_checkeachserver, args=(server.port,))
+					thread_server = Thread(target=thread_checkeachserver, args=(server.port, global_lock,))
 					thread_server.start()
 					thread_server.join()
 
 #ping each server
-def thread_checkeachserver(port):
+def thread_checkeachserver(port, global_lock):
 	global sent_message_id, this_server, list_of_servers 
 	#get exisiting server
 	existing_server = getExisitngServerByPort(port)
@@ -836,25 +852,29 @@ def thread_checkeachserver(port):
 			if (existingserver is not None):
 				if (existingserver.port == global_info.getCurrentLeader()):
 					#launch leader election
-					launchElection(existingserver.port)
+					launchElection(existingserver.port, global_lock)
 				else:
-					#inform servers in multicast group that someone crash
-
-					#deactivate the server
+					#inform servers in multicast group that someone crashed
+					#deactivate the server and update list of servers
 					existingserver.deactivateServer()
+					list_of_servers.remove(existing_server)
 
 					#send multicast message to all other servers
 					voting_packet = DataPacketModel(getCurrentServerDateTime())
 					sent_message_id += 2
 					temp_msg_content = str(existingserver.port)
 					voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.SLAVEDOWN, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
+					
+					global_lock.acquire()
 					this_server.sending_messages_queue.append(voting_packet)
-					#this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.SLAVEDOWN, str(existingserver.port), \
-					#getCurrentServerDateTime()), this_server.getDiscoveryAddress())
+					global_lock.release()
+					
 					print("server %s is going down. The multicast message has been sent to the other servers"%(str(port)))
+					
+					sending_message(global_lock)
 
 #method to launch an election
-def launchElection(port):
+def launchElection(port, global_lock):
 	global sent_message_id 
 	try:
 		#set current status to voting
@@ -876,9 +896,11 @@ def launchElection(port):
 			sent_message_id += 2
 			temp_msg_content = str(this_server.port)+"#"+str(servercrash)
 			voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.DECLARETHELEADER, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
+			
+			global_lock.acquire()
 			this_server.sending_messages_queue.append(voting_packet)
-			#this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.DECLARETHELEADER, 
-			#str(this_server.port)+"#"+str(servercrash), getCurrentServerDateTime()), this_server.getDiscoveryAddress())
+			global_lock.release()
+			
 			#set global status to running
 			global_info.setServerStatus(MessageType.RUNNING)
 			print("I am the leader now and this is my global info:%s , %s"%(global_info.getServerStatus(), str(global_info.getCurrentLeader())))
@@ -896,9 +918,10 @@ def launchElection(port):
 				sent_message_id += 2
 				temp_msg_content = str(port)
 				voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.VOTING, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
+				
+				global_lock.acquire()
 				this_server.sending_messages_queue.append(voting_packet)
-				#this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.VOTING, str(port), getCurrentServerDateTime()), \
-				#this_server.getDiscoveryAddress())
+				global_lock.release()
 
 				#wait for 15 seconds
 				sleep(15)
@@ -913,25 +936,28 @@ def launchElection(port):
 					sent_message_id += 2
 					temp_msg_content = str(this_server.port)+"#"+str(servercrash)
 					voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.DECLARETHELEADER, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
+					
+					global_lock.acquire()
 					this_server.sending_messages_queue.append(voting_packet)
-					#this_server.discovery_socket.sendto(MessageUtil.constructMessage(this_server.port, SenderType.SERVER, MessageType.DECLARETHELEADER, \
-					#str(this_server.port)+"#"+str(servercrash), getCurrentServerDateTime()), this_server.getDiscoveryAddress())
+					global_lock.release()
+					
 					global_info.setServerStatus(MessageType.RUNNING)
 
+		sending_message(global_lock)
 		showConnectedServers()
 	except:
 		print("Do not worry, it is going to be fine")
 		
 
-t1 = Thread(target= thread_mainprocess, args=())
+t1 = Thread(target= thread_mainprocess, args=(sending_message_list_lock,))
 t1.start()
 
-t2 = Thread(target = thread_decidetheleader, args = ())
-t2.start()
-t2.join()
+t3 = Thread(target = thread_decidetheleader, args = (sending_message_list_lock,))
+t3.start()
+t3.join()
 
-#t3 = Thread(target= thread_sendheartbeat, args=())
-#t3.start()
+t4 = Thread(target= thread_sendheartbeat, args=())
+t4.start()
 
-#t4 = Thread(target= thread_checkservers, args=())
-#t4.start()
+t5 = Thread(target= thread_checkservers, args=(sending_message_list_lock,))
+t5.start()
