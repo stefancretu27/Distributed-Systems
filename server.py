@@ -218,34 +218,11 @@ def thread_decidetheleader():
 			sorted_list_of_server_by_joining_time = sorted(list_of_servers, key=lambda x: x.joiningdatetime, reverse=True)
 			sorted_list_of_server_by_port = sorted(list_of_servers, key=lambda x: x.port, reverse=True)
 
-			#if my joined times is greater than the others, then tell everyone that the leader is the one who has highest port
+			#if my joined times is greater than the others, then tell everyone that I will launch an election
 			if(sorted_list_of_server_by_joining_time[len(sorted_list_of_server_by_joining_time)-1] == this_server):
 				#launch the leader
-				print("============================ I will decide and launch the leader ================================")
-
-				#update the global info and deactivate my role as leader
-				global_info.setCurrentLeader(sorted_list_of_server_by_port[0].port)
-				getExisitngServerByPort(sorted_list_of_server_by_port[0].port).activateTheRoleAsTheLeader()
-
-				#if it's my ip address and my port, then set I am the leader
-				if (sorted_list_of_server_by_port[0].port == this_server.port):
-					this_server.activateTheRoleAsTheLeader()
-				else:
-				#otherwise deactivate my role as the leader
-					this_server.deactivateTheRoleAsTheLeader()
-
-				#tell everyone that the leader is the one who has highest port
-				voting_packet = DataPacketModel(getCurrentServerDateTime())
-				sent_message_id += 2
-				temp_msg_content = str(sorted_list_of_server_by_port[0].port)+"#"+MessageContent.SERVERALIVE
-				voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.DECLARETHELEADER, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
-				this_server.sending_messages_queue.append(voting_packet)
-
-				print("length of sending message queue", len(this_server.sending_messages_queue))
-
-				#update my status
-				global_info.setServerStatus(MessageType.RUNNING)
-				# print("the leader is", global_info.getCurrentLeader(), " server status:", global_info.getServerStatus(), " am i the leader",this_server.isTheLeader())
+				print("============================ Thread decide the leader is started ================================")
+				launchElection(this_server.port,MessageContent.SERVERALIVE)
 				print("========================== Thread decide leader ended ====================================")
 
 		if (global_info.getServerStatus() in [MessageType.LISTOFSERVERUPDATED]):
@@ -411,10 +388,13 @@ def thread_mainprocess():
 							
 				#if a new server wants to connect during the election, then send the message to try again in a few moments
 				if (packet.message_type == MessageType.SERVERUP and (global_info.getServerStatus() in [MessageType.VOTING])):
-					unicastMessage(-5, MessageType.SERVERBUSY, 'server busy', packet.receivedDateTime, temp_server.getAddress())	
+					#if the sender is not on my server list, then refuse to connect
+					if (packet.sender_id not in getLitsOfServerPorts()):
+						unicastMessage(-5, MessageType.SERVERBUSY, 'server busy', packet.receivedDateTime, temp_server.getAddress())
 					
 				#if the server status is up and the message type is declare the leader
-				if ((global_info.getServerStatus() in [MessageType.SERVERUP,MessageType.RUNNING, MessageType.VOTING]) and packet.message_type == MessageType.DECLARETHELEADER):
+				#MessageType.SERVERUP
+				if ((global_info.getServerStatus() in [MessageType.RUNNING, MessageType.SERVERUP, MessageType.VOTING]) and packet.message_type == MessageType.DECLARETHELEADER):
 					print("global_info.getServerStatus()", global_info.getServerStatus(), "message type", packet.message_type, " content", packet.message_content)
 					arrmessagecontent = packet.message_content.split("#")
 					theleaderport = int(arrmessagecontent[0])
@@ -456,55 +436,57 @@ def thread_mainprocess():
 					unicastMessage(-6, MessageType.LISTOFEXISTINGSERVERS, getStrListOfConnectedServers(), getCurrentServerDateTime(), getExisitngServerByPort(packet.sender_id).getAddress())
 
 				#if slave goes down and my status is running
-				if (global_info.getServerStatus() == MessageType.RUNNING and packet.message_type == MessageType.SLAVEDOWN):
+				if ((global_info.getServerStatus() in [MessageType.RUNNING, MessageType.VOTING]) and packet.message_type == MessageType.SLAVEDOWN):
 					print("I got message from %s with message type %s and the content is %s"%(str(packet.sender_id), packet.message_type, packet.message_content))
 					removeTheServer(int(packet.message_content))
 					print("I have updated my server list.")
 					showConnectedServers()
 
 				#if voting is launched and my status is running
-				if (global_info.getServerStatus() == MessageType.RUNNING and packet.message_type == MessageType.VOTING):
-					print("I got message from %s with message type %s and the content is %s"%(str(packet.sender_id), packet.message_type, packet.message_content))
-					arrmessagecontent = packet.message_content.split("#")
-					theleaderport = int(arrmessagecontent[0])
-					theleaderstatus = arrmessagecontent[1]
+				if ((global_info.getServerStatus() in [MessageType.RUNNING, MessageType.SERVERUP,MessageType.VOTING]) and packet.message_type == MessageType.VOTING):
+					#if the sender is on my server list, then allow them to participate in election
+					if (packet.sender_id in getLitsOfServerPorts()):
+						print("I got message from %s with message type %s and the content is %s"%(str(packet.sender_id), packet.message_type, packet.message_content))
+						arrmessagecontent = packet.message_content.split("#")
+						theleaderport = int(arrmessagecontent[0])
+						theleaderstatus = arrmessagecontent[1]
 
-					#if the leader has been changed
-					if (theleaderport == global_info.getCurrentLeader()):
-						#set my status to voting
-						global_info.setServerStatus(MessageType.VOTING)
+						#if the leader has been changed
+						if (theleaderport == global_info.getCurrentLeader() or global_info.getServerStatus() == MessageType.SERVERUP):
+							#set my status to voting
+							global_info.setServerStatus(MessageType.VOTING)
 
-						#remove the previous leader
-						if (theleaderstatus ==MessageContent.SERVERCRASH):
-							removeTheLeader()
+							#remove the previous leader
+							if (theleaderstatus ==MessageContent.SERVERCRASH):
+								removeTheLeader()
 
-						#sort the members by port
-						sorted_list_of_server_by_port = sorted(list_of_servers, key=lambda x: x.port, reverse=True)
+							#sort the members by port
+							sorted_list_of_server_by_port = sorted(list_of_servers, key=lambda x: x.port, reverse=True)
 
-						#if the members only one or my port is the highest among others then I'm the leader
-						if (sorted_list_of_server_by_port[0].port == this_server.port):
-							this_server.activateTheRoleAsTheLeader()
-							global_info.setCurrentLeader(this_server.port)
+							#if the members only one or my port is the highest among others then I'm the leader
+							if (sorted_list_of_server_by_port[0].port == this_server.port):
+								this_server.activateTheRoleAsTheLeader()
+								global_info.setCurrentLeader(this_server.port)
 
-							#announce that I'm the leader by sending message to multicast group
-							voting_packet = DataPacketModel(getCurrentServerDateTime())
-							sent_message_id += 2
-							temp_msg_content = str(this_server.port)+"#"+theleaderstatus
-							voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.DECLARELEADER, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
-							this_server.sending_messages_queue.append(voting_packet)
-							#change my status to running
-							global_info.setServerStatus(MessageType.RUNNING)
-							print("I'm the leader now since I have the highest port over the others. I will multicast this message")
-					else:
-						#get server by port
-						previousleader = getExisitngServerByPort(theleaderport)
-						if (previousleader is None):
-							#send the current leader to the sender
-							print("the leader has changed, the newest one is %s"%(str(global_info.getCurrentLeader())))
-							unicastMessage(-7, MessageType.ANNOUNCELEADER, str(global_info.getCurrentLeader()), packet.receivedDateTime, (localhost, packet.sender_id))
+								#announce that I'm the leader by sending message to multicast group
+								voting_packet = DataPacketModel(getCurrentServerDateTime())
+								sent_message_id += 2
+								temp_msg_content = str(this_server.port)+"#"+theleaderstatus
+								voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.DECLARETHELEADER, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
+								this_server.sending_messages_queue.append(voting_packet)
+								#change my status to running
+								global_info.setServerStatus(MessageType.RUNNING)
+								print("I'm the leader now since I have the highest port over the others. I will multicast this message")
+						else:
+							#get server by port
+							previousleader = getExisitngServerByPort(theleaderport)
+							if (previousleader is None):
+								#send the current leader to the sender
+								print("the leader has changed, the newest one is %s"%(str(global_info.getCurrentLeader())))
+								unicastMessage(-7, MessageType.ANNOUNCELEADER, str(global_info.getCurrentLeader()), packet.receivedDateTime, (localhost, packet.sender_id))
 
-					#update the last sending message datetime of the sender
-					updateSenderLastSendingMessageDateTime(packet.sender_id, packet.receivedDateTime)
+						#update the last sending message datetime of the sender
+						updateSenderLastSendingMessageDateTime(packet.sender_id, packet.receivedDateTime)
 
 								#if there is an announcement of the new leader and my status is running
 				if (global_info.getServerStatus() == MessageType.RUNNING and packet.message_type == MessageType.ANNOUNCELEADER):
@@ -764,19 +746,31 @@ def thread_sendheartbeat():
 def thread_checkservers():
 	while True:
 		if (global_info.getServerStatus() == MessageType.RUNNING):
-			for server in list_of_servers:
-				if server.port != this_server.port:
-					#create new thread to check each server
-					try:
-						thread_server = Thread(target=thread_checkeachserver, args=(server.port,))
-						thread_server.start()
-						thread_server.join()
-					except:
-						e = sys.exc_info()[0]
-						print("Exception in thread_checkservers", e)
+			#if I'm the slave, then I will check the leader
+			if (this_server.isTheLeader() == False):
+				#create new thread to check each server
+				try:
+					thread_server = Thread(target=thread_checkeachserver, args=(global_info.getCurrentLeader(),True,))
+					thread_server.start()
+					thread_server.join()
+				except:
+					e = sys.exc_info()[0]
+					print("Exception in thread check the leader", e)
+			#if I'm the leader, then I will check all slaves
+			else:
+				for server in list_of_servers:
+					if server.port != this_server.port:
+						#create new thread to check each server
+						try:
+							thread_server = Thread(target=thread_checkeachserver, args=(server.port,False,))
+							thread_server.start()
+							thread_server.join()
+						except:
+							e = sys.exc_info()[0]
+							print("Exception in thread_checkservers", e)
 
 #ping each server
-def thread_checkeachserver(port):
+def thread_checkeachserver(port,istheleader):
 	global sent_message_id, this_server, list_of_servers
 	try:
 		#get exisiting server
@@ -799,11 +793,13 @@ def thread_checkeachserver(port):
 				#get the existing server
 				existingserver = getExisitngServerByPort(port)
 				if (existingserver is not None):
-					if (existingserver.port == global_info.getCurrentLeader()):
+					if (istheleader):
+						print("I am checking the leader")
 						#launch leader election
 						launchElection(existingserver.port, MessageContent.SERVERCRASH)
 					else:
 						#inform servers in multicast group that someone crash
+						print("I am checking the slaves")
 						#remove the corresponding server
 						removeTheServer(existing_server.port)
 
@@ -819,8 +815,8 @@ def thread_checkeachserver(port):
 						showConnectedServers()
 
 						#then re-launch the election
-						print("----------------------Relaunch the election because someones dies----------------------")
-						launchElection(global_info.getCurrentLeader(), MessageContent.SERVERALIVE)
+						#print("----------------------Relaunch the election because someones dies----------------------")
+						#launchElection(global_info.getCurrentLeader(), MessageContent.SERVERALIVE)
 	except:
 		e = sys.exc_info()[0]
 		print("Exception in thread_checkservers. Do not worry, it's going to be fine :)", e)
@@ -868,18 +864,32 @@ def launchElection(port,leaderstatus):
 			print("My status after 15 seconds", global_info.getServerStatus(), " the leader:",global_info.getCurrentLeader())
 			#if the status is still voting after 15 seconds, then
 			if (global_info.getServerStatus() == MessageType.VOTING and (port == global_info.getCurrentLeader())):
-				#set the global info and my role as the leader
-				global_info.setCurrentLeader(this_server.port)
-				this_server.activateTheRoleAsTheLeader()
-				#announce to multicast group that I'm the leader
-				print("since nobody listens to the election therefore I decided to be the leader")
-				voting_packet = DataPacketModel(getCurrentServerDateTime())
-				sent_message_id += 2
-				temp_msg_content = str(this_server.port)+"#"+leaderstatus
-				voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.DECLARETHELEADER, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
-				this_server.sending_messages_queue.append(voting_packet)
-				global_info.setServerStatus(MessageType.RUNNING)
-		showConnectedServers()
+				#sort the members by port
+				sorted_list_of_server_by_port = sorted(list_of_servers, key=lambda x: x.port, reverse=True)
+
+				#get the delta of each server
+				for server in sorted_list_of_server_by_port:
+					if server.port != this_server.port:
+						server_datetimesendingmessage = server.getLastSendingMessageDateTime()
+						server_delta = (MessageUtil.convertStringToDateTime(getCurrentServerDateTime()) - server_datetimesendingmessage).total_seconds()
+						#if server delta greater than maximum treshold
+						if (server_delta > ConstantValues.DELTAMAX):
+							#remove the corresponding server
+							removeTheServer(server.port)
+							#send multicast message to all other servers
+							voting_packet = DataPacketModel(getCurrentServerDateTime())
+							sent_message_id += 2
+							temp_msg_content = str(server.port)
+							voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.SLAVEDOWN, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
+							this_server.sending_messages_queue.append(voting_packet)
+							print("server %s is going down. The multicast message has been sent to the other servers"%(str(server.port)))
+
+							#then re-launch the election
+							print("----------------------Relaunch the election because someones dies----------------------")
+							launchElection(global_info.getCurrentLeader(), MessageContent.SERVERCRASH)
+
+							break
+			showConnectedServers()
 	except:
 		print("Do not worry, it is going to be fine")
 
