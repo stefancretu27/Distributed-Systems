@@ -35,8 +35,6 @@ class UDPServerModel:
 	received_messages_queue = list()
 #list of messages to send
 	sending_messages_queue = list()
-#store all connected clients in a list = client group view	
-	list_of_clients = list()
 
 #Methods
 #constructor
@@ -109,61 +107,3 @@ class UDPServerModel:
 		
 	def closeSocket(self):
 		self.socket.close()
-
-#list of clients related operations
-	#for various reasons a client will disconnect => update the list of clients
-	def disconnectClient(self, this_client):
-		if self.list_of_clients:
-			return [client for client in self.list_of_clients if client != this_client]
-		else:
-			return []
-	#display the port and ip of all clients
-	def showConnectedClients(self):
-		if self.list_of_clients:
-			for client in self.list_of_clients:
-				print ("   ",(client.address))
-		else:
-			print ('[Client update] Currently, no clients are connected in the system')
-	#search if a client is connected	
-	def isClientInList(self, this_client):
-		for client in self.list_of_clients:
-			if client == this_client:			
-				return True
-		return False
-
-	#send a message to all connected clients but to the one that sent it
-	def multicastMessagetoClients(self, this_client, message_type, serverdatetime):
-	#set message's parameters
-		#message received from a clien and multicasted to the other clients
-		multicast_sendertype = SenderType.CLIENT
-		#the sender client is identified based on its ip and port, taken from address
-		multicast_senderid = "%s:%s"%(this_client.address[0], this_client.address[1])
-		#message content is not altered
-		multicast_message = this_client.message
-		multicast_datetime = serverdatetime
-
-		#if a client joins or leaves
-		if (message_type == MessageType.LEFTROOM or message_type == MessageType.JOINROOM):
-			#create notifications
-			if (message_type == MessageType.JOINROOM):
-				multicast_message = '************************ client %s:%s joined the room ********************************' %(this_client.address[0],this_client.address[1])
-			else:
-				multicast_message = '************************ client %s:%s left the room ****************************' %(this_client.address[0],this_client.address[1])
-			#the server sends notifications to all connected clients
-			multicast_sendertype = SenderType.SERVER
-			#specify the identity of the server that handles the join/leave operation
-			multicast_senderid = "%s:%s"%(self.ip, self.port)
-
-		#multicast the message
-		for client in self.list_of_clients:
-			if (client == this_client):
-				if (message_type == MessageType.JOINROOM):
-					self.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, -1, MessageType.ACKNOWLEDGEFROMSERVER, this_client.getJoiningDateTime(), multicast_datetime), client.address)
-			else:
-				self.socket.sendto(MessageUtil.constructMessage(multicast_senderid, multicast_sendertype, -1, message_type, multicast_message, multicast_datetime), client.address)
-
-	def getConnectedClientsAddresses(self):
-		if self.list_of_clients:
-			return [client.getAddress() for client in self.list_of_clients]
-		else:
-			return []

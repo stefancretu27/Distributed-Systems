@@ -7,8 +7,8 @@ LEFTROOM='leftroom', SERVERUP='serverup', SERVERDOWN='serverdown', VOTING='votin
 LISTOFEXISTINGSERVERS='listexistingservers', PINGTHELEADER='pingtheleader',ACKNOWLEDGEMENTPINGTHELEADER='acknowledgementpingtheleader',PAUSERUNNING='pauserunning', \
 ACKNOWLEDGEMENTVOTING='acknowledgementvoting', WAITINGFORACKNOWLEDGMENT='waitingforacknowledgement',ANNOUNCELEADERAFTERJOIN='announceleaderafterjoin',SLAVEDOWN='slavedown', \
 PINGTHESLAVE='pingtheslave',ACKNOWLEDGEMENTPINGTHESLAVE='acknowldegementpingtheslave', SERVERUPINPROGRESSEXCHANGINGINFORMATION='serverupinprogressexchanginginformation', \
-ACKNOWLEDGEMENTFROMALIVESERVER='acknowledgementfromaliveserver',LISTOFSERVERUPDATED='listofserverupdated', REQUESTLISTOFSERVER = 'requestlistofserver',SERVERBUSY='serverbusy', \
-DECIDINGTHELEADER='decidingtheleader', HEARTBEAT='heartbeat', RECEIVEDMESSAGE='receivedmessage')
+ACKNOWLEDGEMENTFROMALIVESERVER='acknowledgementfromaliveserver',LISTOFCLIENTSUPDATED='listofclientsupdated', REQUESTLISTOFSERVER = 'requestlistofserver',SERVERBUSY='serverbusy', \
+DECIDINGTHELEADER='decidingtheleader', HEARTBEAT='heartbeat', RECEIVEDMESSAGE='receivedmessage', REQUESTLISTOFCLIENTS='requestlistofclients',LISTOFEXISTINGCLIENTS='lisofexistingclients')
 SenderType = enum(CLIENT='client', SERVER='server')
-MessageContent = enum(QUIT='~q',SERVERALIVE='0',SERVERCRASH='1')
+MessageContent = enum(QUIT='~q',SERVERALIVE='0',SERVERCRASH='1',NONE='none')
 ConstantValues = enum(DELTAMAX=30)

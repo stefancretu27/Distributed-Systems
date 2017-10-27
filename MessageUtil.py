@@ -7,7 +7,7 @@ class MessageUtil(object):
     def constructMessage(sender_id, sender_type, message_id, message_type, message, datetime):
        json_format = {'id':sender_id, 'sender_type':sender_type, 'message_id':message_id, 'message_type':message_type, 'message':message, 'messagedatetime':datetime}
        #for python 2.7 please remove the encod() method
-       return (json.dumps(json_format)).encode()
+       return (json.dumps(json_format))
 
     @staticmethod
     def extractMessage(obj):
