@@ -4,6 +4,7 @@ class ClientModel:
 	joiningdatetime = None
 	leavingdatetime = None
 	messagedatetime = None
+	server_address = None
 
 	def __init__ (self, input_message, input_address):
 		self.message = input_message
