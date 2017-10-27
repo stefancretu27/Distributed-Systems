@@ -5,6 +5,7 @@ import socket
 import struct
 import select
 import datetime
+from threading import Thread, Lock
 #import classes
 from MessageUtil import MessageUtil
 from Enum import MessageType,SenderType,MessageContent
@@ -37,66 +38,92 @@ client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, -1, M
 
 sys.stdout.write('[Me:] '); sys.stdout.flush()
 
-while True:
-	#consider as sockets the std input file and the client socket created
-	client_socket_list = [sys.stdin, client_socket, multicast_socket]
+def main_process():
+	global current_server_port,rec_msg_buffer_size,my_joiningdate,server_address
+	while True:
+		#consider as sockets the std input file and the client socket created
+		client_socket_list = [sys.stdin, client_socket]
 
-	#each iteration check if the 2 sockets ready for reading (having data into them)
-	read_sockets, write_sockets, error_sockets = select.select(client_socket_list, [], [])
+		#each iteration check if the 2 sockets ready for reading (having data into them)
+		read_sockets, write_sockets, error_sockets = select.select(client_socket_list, [], [])
 
-	#if current socket is readable, then wait for msg from server
-	for socket in read_sockets:
-		#if client socket has data =>server sent a message
-		if socket == sys.stdin:
-			#send message to server. Even if #q is typed, firstly inform the server
-			try:
-				client_message = sys.stdin.readline()
-				if client_message:
-					if (client_message.strip() == MessageContent.QUIT):
-						client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, -1, MessageType.LEFTROOM, client_message, str(getCurrentDateTime())), server_address)
-						client_socket.close()
-						sys.exit(0)
+		#if current socket is readable, then wait for msg from server
+		for socket in read_sockets:
+			#if client socket has data =>server sent a message
+			if socket == sys.stdin:
+				#send message to server. Even if #q is typed, firstly inform the server
+				try:
+					client_message = sys.stdin.readline()
+					if client_message:
+						if (client_message.strip() == MessageContent.QUIT):
+							client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, -1, MessageType.LEFTROOM, client_message, str(getCurrentDateTime())), server_address)
+							client_socket.close()
+							sys.exit(0)
+						else:
+							print server_address
+							client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, -1, MessageType.NORMALCHAT, client_message, str(getCurrentDateTime())), server_address)
+							sys.stdout.write('[Me:] ')
+							sys.stdout.flush()
+				except:
+					print ('The message could not be sent. The socket will close. Type <~q> to exit the application')
+					#client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, -1, MessageType.LEFTROOM, client_message, str(getCurrentDateTime())), server_address)
+					#client_socket.close()
+			else:
+				server_message, server_address = socket.recvfrom(rec_msg_buffer_size)
+				#extract information from the message received from server
+				sender_id, sender_type, message_id, message_type, message_content, message_datetime = MessageUtil.extractMessage(server_message)
+
+				if socket == client_socket:
+					if not server_message:
+						print ('disconnected from server')
 					else:
-						print server_address
-						client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, -1, MessageType.NORMALCHAT, client_message, str(getCurrentDateTime())), server_address)
-						sys.stdout.write('[Me:] ')
-						sys.stdout.flush()
-			except:
-				print ('The message could not be sent. The socket will close. Type <~q> to exit the application')
-				client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, -1, MessageType.LEFTROOM, client_message, str(getCurrentDateTime())), server_address)
-				#client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, -1, MessageType.CLIENTREJOIN, client_message, str(getCurrentDateTime())), multicast_group)
-				client_socket.close()
-		else:
-			server_message, server_address = socket.recvfrom(rec_msg_buffer_size)
-			#extract information from the message received from server
-			sender_id, sender_type, message_id, message_type, message_content, message_datetime = MessageUtil.extractMessage(server_message)
-			
-			if socket == client_socket:
-				if not server_message:
-					print ('disconnected from server')
-				else:
-					sys.stdout.write('\n')
-					if (sender_type == SenderType.SERVER):
-						if (message_type == MessageType.JOINROOM or message_type == MessageType.LEFTROOM or message_type == MessageType.SERVERBUSY):
-							sys.stdout.write("%s \n"%(message_content))
-						
-						if (message_type == MessageType.ACKNOWLEDGEFROMSERVER):
-							my_joiningdate = MessageUtil.convertStringToDateTime(message_content)
-							sys.stdout.write("Joined the chat room at %s \n"%(message_content))
-					else:
-						if (MessageUtil.convertStringToDateTime(message_datetime) >= my_joiningdate):
-							sys.stdout.write("[%s at %s] %s"%(sender_id, message_datetime, message_content))
-					sys.stdout.write('[Me:] '); sys.stdout.flush()
-	
-			if socket == multicast_socket and server_message:
+						sys.stdout.write('\n')
+						if (sender_type == SenderType.SERVER):
+							if (message_type == MessageType.JOINROOM or message_type == MessageType.LEFTROOM or message_type == MessageType.SERVERBUSY):
+								sys.stdout.write("%s \n"%(message_content))
+
+							if (message_type == MessageType.ACKNOWLEDGEFROMSERVER):
+								my_joiningdate = MessageUtil.convertStringToDateTime(message_content)
+								sys.stdout.write("Joined the chat room at %s \n"%(message_content))
+						else:
+							if (MessageUtil.convertStringToDateTime(message_datetime) >= my_joiningdate):
+								sys.stdout.write("[%s at %s] %s"%(sender_id, message_datetime, message_content))
+						sys.stdout.write('[Me:] '); sys.stdout.flush()
+def secondprocess():
+	global current_server_port,server_address
+	while True:
+		#consider as sockets the std input file and the client socket created
+		client_socket_list = [multicast_socket]
+
+		#each iteration check if the 2 sockets ready for reading (having data into them)
+		read_sockets, write_sockets, error_sockets = select.select(client_socket_list, [], [])
+
+		#if current socket is readable, then wait for msg from server
+		for socket in read_sockets:
+			if (socket == multicast_socket):
+				server_message, server_address_multicast = socket.recvfrom(rec_msg_buffer_size)
+				#extract information from the message received from server
+				sender_id, sender_type, message_id, message_type, message_content, message_datetime = MessageUtil.extractMessage(server_message)
+
 				if(sender_type == SenderType.SERVER):
-					if(message_type == MessageType.ANNOUNCEMENTSLAVEDOWN):
+					if(message_type == MessageType.CLIENTANNOUNCEMENTSERVERDOWN):
 						arr_contents = message_content.split("#")
 						temp_current_server_port = int(arr_contents[0])
 						new_server_port = int(arr_contents[1])
-						
-						if (temp_current_server_port == current_server_port):
-							server_address[1] = new_server_port
-					
-					
-					
+						print("I got message from server. Server ",temp_current_server_port," crashed. The replacement would be server: ",new_server_port)
+
+						if (temp_current_server_port == server_address[1]):
+							tem_lst_server_address = list(server_address)
+							tem_lst_server_address[1] = new_server_port
+							server_address = tuple(tem_lst_server_address)
+							print("====================== Reconnecting to the new server===============================")
+							print("Now, connected to server", server_address[1])
+							sys.stdout.write('[Me:] '); sys.stdout.flush()
+
+t1 = Thread(target= main_process, args=())
+t1.start()
+
+t2 = Thread(target = secondprocess, args = ())
+t2.start()
+
+

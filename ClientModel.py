@@ -33,7 +33,8 @@ class ClientModel:
 
 	def setMessageDateTime(self, new_messagedatetime):
 		self.messagedatetime = new_messagedatetime
-
+	def setServerAddress(self, new_serveraddress):
+		self.server_address = ('127.0.0.1', new_serveraddress)
 	#getters
 	def getAddress(self):
 		return self.address
