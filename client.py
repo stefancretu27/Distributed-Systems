@@ -36,6 +36,8 @@ client_socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
 #send connection message to the server
 client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, -1, MessageType.JOINROOM, 'new_client', str(getCurrentDateTime())), server_address)
 
+print ("------------ Client is currently connected to server %s -------------"%(str(current_server_port)))
+
 sys.stdout.write('[Me:] '); sys.stdout.flush()
 
 def main_process():
@@ -53,6 +55,7 @@ def main_process():
 			if socket == sys.stdin:
 				#send message to server. Even if #q is typed, firstly inform the server
 				try:
+					sys.stdout.write("I sent message to server %s\n"%(str(server_address[1])))
 					client_message = sys.stdin.readline()
 					if client_message:
 						if (client_message.strip() == MessageContent.QUIT):
@@ -110,6 +113,7 @@ def secondprocess():
 						temp_current_server_port = int(arr_contents[0])
 						new_server_port = int(arr_contents[1])
 						print("I got message from server. Server ",temp_current_server_port," crashed. The replacement would be server: ",new_server_port)
+						sys.stdout.write('[Me:] '); sys.stdout.flush()
 
 						if (temp_current_server_port == server_address[1]):
 							tem_lst_server_address = list(server_address)
