@@ -37,6 +37,8 @@ class UDPServerModel:
 	received_messages_queue = list()
 #list of messages to send
 	sending_messages_queue = list()
+#list of all sent messages in the multicast group
+	sent_messages_queue = list()
 
 #Methods
 #constructor
