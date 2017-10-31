@@ -60,7 +60,6 @@ def main_process():
 							client_socket.close()
 							sys.exit(0)
 						else:
-							print server_address
 							client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, -1, MessageType.NORMALCHAT, client_message, str(getCurrentDateTime())), server_address)
 							sys.stdout.write('[Me:] ')
 							sys.stdout.flush()

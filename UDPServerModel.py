@@ -31,6 +31,8 @@ class UDPServerModel:
 	istheleader = False
 #list of received messages to be processed and then removed
 	message_buffer = list()
+#list of received heartbeats processed and then removed
+	recv_heartbeats_buffer = list()
 #list of received messages. It acts like a message log, as the duplicate messages are rejected and the existing messages are not removed 
 	received_messages_queue = list()
 #list of messages to send
