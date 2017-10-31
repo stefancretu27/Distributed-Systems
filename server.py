@@ -128,14 +128,14 @@ def getExisitngServerByPort(_port):
 	return single_server
 
 def deactivateTheLeader():
-	print ("[Server update] deactivate the old leader")
+	# print ("[Server update] deactivate the old leader")
 	for i, server in enumerate(list_of_servers):
 		if server.port == global_info.getCurrentLeader():
 			list_of_servers[i].deactivateTheRoleAsTheLeader()
 			break
 
 def removeTheLeader():
-	print ("[Server update] removing the old leader")
+	# print ("[Server update] removing the old leader")
 	try:
 		for i, server in enumerate(list_of_servers):
 			if server.port == global_info.getCurrentLeader():
@@ -184,7 +184,7 @@ def sending_message():
 					#print "Servers", [server.port for server in list_of_servers]
 					#print "Receivers", [server.port for server in packet.list_of_receivers]
 				else:
-					if (packet.metadata == "clientannouncementserverdown"):
+					if (packet.metadata == MessageType.CLIENTANNOUNCEMENTSERVERDOWN):
 						multicastMessageToServers(packet.message_id, packet.message_type, packet.message_content, packet.sendingDateTime)
 						this_server.sending_messages_queue.remove(packet)
 					else:
@@ -276,17 +276,22 @@ def getStrListOfConnectedClients():
 	idx = 0
 	if lst_size > 0:
 		for cl in list_of_clients:
+			# print("getStrListOfConnectedClients ","ip", cl.address[0],"port:", cl.address[1],"jd:", cl.joiningdatetime,"ld:", cl.leavingdatetime, "md:", cl.messagedatetime)
+			temp_joiningdatetime = MessageContent.NONE
 			temp_leavingdatetime = MessageContent.NONE
 			temp_messagedatetime = MessageContent.NONE
 
+			if (cl.joiningdatetime is not None):
+				temp_joiningdatetime = cl.joiningdatetime
 			if (cl.leavingdatetime is not None):
 				temp_leavingdatetime = cl.leavingdatetime
 			if (cl.messagedatetime is not None):
 				temp_messagedatetime = cl.messagedatetime
+
 			if(idx == lst_size-1):
-				strclient = strclient + str(cl.address[0])+"#" + str(cl.address[1])+"#"+cl.joiningdatetime+"#"+temp_leavingdatetime+"#"+temp_messagedatetime+"#"+str(cl.server_address[1])
+				strclient = strclient + str(cl.address[0])+"#" + str(cl.address[1])+"#"+temp_joiningdatetime+"#"+temp_leavingdatetime+"#"+temp_messagedatetime+"#"+str(cl.server_address[1])
 			else:
-				strclient = strclient + str(cl.address[0])+"#" + str(cl.address[1])+"#"+cl.joiningdatetime+"#"+temp_leavingdatetime+"#"+temp_messagedatetime+"#"+str(cl.server_address[1])+";"
+				strclient = strclient + str(cl.address[0])+"#" + str(cl.address[1])+"#"+temp_joiningdatetime+"#"+temp_leavingdatetime+"#"+temp_messagedatetime+"#"+str(cl.server_address[1])+";"
 			idx = idx+1
 	return strclient
 
@@ -768,6 +773,8 @@ def thread_mainprocess():
 							item_arr_client_obj.setServerAddress(item_client_server_address_port)
 							item_arr_client_obj.setJoiningDateTime(item_client_joiningdatetime)
 
+							if (item_client_joiningdatetime != MessageContent.NONE):
+								item_arr_client_obj.setJoiningDateTime(item_client_joiningdatetime)
 							if (item_client_leavingdatetime != MessageContent.NONE):
 								item_arr_client_obj.setLeavingDateTime(item_client_leavingdatetime)
 							if (item_client_lastsendingmessage != MessageContent.NONE):
@@ -782,6 +789,8 @@ def thread_mainprocess():
 								existing_client.setServerAddress(item_client_server_address_port)
 								existing_client.setJoiningDateTime(item_client_joiningdatetime)
 
+								if (item_client_joiningdatetime != MessageContent.NONE):
+									existing_client.setJoiningDateTime(item_client_joiningdatetime)
 								if (item_client_leavingdatetime != MessageContent.NONE):
 									existing_client.setLeavingDateTime(item_client_leavingdatetime)
 								if (item_client_lastsendingmessage != MessageContent.NONE):
@@ -811,7 +820,7 @@ def thread_mainprocess():
 						for client_address in packet.message_content:
 						#Get each client's address = ip + port, that is received as list, not as tuple
 							client_ip = unicodedata.normalize('NFKD', client_address[0]).encode('ascii','ignore')
-							
+
 							#Create a client object
 							new_client = ClientModel('', (client_ip, client_address[1]))
 							new_client.server_address = (localhost, packet.sender_id)
@@ -835,6 +844,7 @@ def thread_mainprocess():
 						#inform the admin		
 						sender_id = packet.sender_id
 						print ('\n[Client update] A new client has joined on server: '+ str(sender_id))
+						print("client packet ", packet.message_content)
 					
 					#show to admin all connected clients	
 
