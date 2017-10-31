@@ -128,14 +128,14 @@ def getExisitngServerByPort(_port):
 	return single_server
 
 def deactivateTheLeader():
-	print ("[Server update] deactivate the old leader")
+	# print ("[Server update] deactivate the old leader")
 	for i, server in enumerate(list_of_servers):
 		if server.port == global_info.getCurrentLeader():
 			list_of_servers[i].deactivateTheRoleAsTheLeader()
 			break
 
 def removeTheLeader():
-	print ("[Server update] removing the old leader")
+	# print ("[Server update] removing the old leader")
 	try:
 		for i, server in enumerate(list_of_servers):
 			if server.port == global_info.getCurrentLeader():
@@ -256,6 +256,7 @@ def getStrListOfConnectedClients():
 				temp_leavingdatetime = cl.leavingdatetime
 			if (cl.messagedatetime is not None):
 				temp_messagedatetime = cl.messagedatetime
+
 			if(idx == lst_size-1):
 				strclient = strclient + str(cl.address[0])+"#" + str(cl.address[1])+"#"+temp_joiningdatetime+"#"+temp_leavingdatetime+"#"+temp_messagedatetime+"#"+str(cl.server_address[1])
 			else:
@@ -797,7 +798,7 @@ def thread_mainprocess():
 						for client_address in packet.message_content:
 						#Get each client's address = ip + port, that is received as list, not as tuple
 							client_ip = unicodedata.normalize('NFKD', client_address[0]).encode('ascii','ignore')
-							
+
 							#Create a client object
 							new_client = ClientModel('', (client_ip, client_address[1]))
 							new_client.server_address = (localhost, packet.sender_id)
@@ -821,6 +822,7 @@ def thread_mainprocess():
 						#inform the admin		
 						sender_id = packet.sender_id
 						print ('\n[Client update] A new client has joined on server: '+ str(sender_id))
+						print("client packet ", packet.message_content)
 					
 					#show to admin all connected clients	
 
