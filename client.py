@@ -112,7 +112,7 @@ def secondprocess():
 						arr_contents = message_content.split("#")
 						temp_current_server_port = int(arr_contents[0])
 						new_server_port = int(arr_contents[1])
-						#print("I got message from server. Server ",temp_current_server_port," crashed. The replacement would be server: ",new_server_port)
+						# print("I got message from server. Server ",temp_current_server_port," crashed. The replacement would be server: ",new_server_port)
 						# sys.stdout.write('[Me:] '); sys.stdout.flush()
 
 						if (temp_current_server_port == server_address[1]):

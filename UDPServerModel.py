@@ -24,8 +24,8 @@ class UDPServerModel:
 	discovery_socket = None
 	
 #dynamic discovery global data
-	discovery_multicast_group = '224.1.1.2'
-	discovery_multicast_port = 12001
+	discovery_multicast_group = '224.1.1.1'
+	discovery_multicast_port = 12000
 	
 #leader status
 	istheleader = False

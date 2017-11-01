@@ -419,6 +419,9 @@ def thread_decidetheleader():
 				global_lock.acquire()
 				try:
 					this_server.sending_messages_queue.append(voting_packet)
+				except:
+					e = sys.exc_info()[0]
+					print("[Server update] Exception in List of client updated", e)
 				finally:
 					global_lock.release()
 			else:
@@ -478,6 +481,9 @@ def thread_mainprocess():
 							received_msg_lock.acquire()
 							try:
 								this_server.received_messages_queue.append(temp_packet)
+							except:
+								e = sys.exc_info()[0]
+								print("[Server update] Discovery Socket", e)
 							finally:
 								received_msg_lock.release()
 							#append packet in the server's packets buffer used for processing messages
@@ -495,6 +501,9 @@ def thread_mainprocess():
 							for packet in this_server.sending_messages_queue:
 								if packet == temp_packet and this_server not in packet.list_of_receivers:
 									packet.list_of_receivers.append(this_server)
+						except:
+							e = sys.exc_info()[0]
+							print("[Server update] Exception in discovery sockets", e)
 						finally:
 							global_lock.release()
 
@@ -517,6 +526,9 @@ def thread_mainprocess():
 						received_msg_lock.acquire()
 						try:
 							this_server.received_messages_queue.append(temp_packet)
+						except:
+							e = sys.exc_info()[0]
+							print("[Server update] Exception in server socket", e)
 						finally:
 							received_msg_lock.release()
 						#append packet in the server's packets buffer used for processing messages
@@ -558,6 +570,9 @@ def thread_mainprocess():
 					global_lock.acquire()
 					try:
 						this_server.sending_messages_queue.append(sending_packet)
+					except:
+						e = sys.exc_info()[0]
+						print("[Server update] Exception in server up", e)
 					finally:
 						global_lock.release()
 				
@@ -615,6 +630,9 @@ def thread_mainprocess():
 							list_of_servers_lock.acquire()
 							try:
 								deactivateTheLeader()
+							except:
+								e = sys.exc_info()[0]
+								print("[Server update] Exception in declare the leader", e)
 							finally:
 								list_of_servers_lock.release()
 						else:
@@ -626,6 +644,9 @@ def thread_mainprocess():
 							list_of_servers_lock.acquire()
 							try:
 								removeTheLeader()
+							except:
+								e = sys.exc_info()[0]
+								print("[Server update] Exception in declare the leader", e)
 							finally:
 								list_of_servers_lock.release()
 
@@ -636,13 +657,16 @@ def thread_mainprocess():
 							list_of_servers_lock.acquire()
 							try:
 								theleader = getExisitngServerByPort(theleaderport)
+								#activate the corresponding server as the leader
+								if (theleader is not None):
+									theleader.activateTheRoleAsTheLeader()
+								else:
+									print("\n[Server update] I can't find the leader on my list of servers")
+							except:
+								e = sys.exc_info()[0]
+								print("[Server update] Exception in declare the leader", e)
 							finally:
 								list_of_servers_lock.release()
-							#activate the corresponding server as the leader
-							if (theleader is not None):
-								theleader.activateTheRoleAsTheLeader()
-							else:
-								print("\n[Server update] I can't find the leader on my list of servers")
 
 						updateSenderLastSendingMessageDateTime(packet.sender_id, packet.receivedDateTime)
 						#set the params of global info
@@ -688,6 +712,9 @@ def thread_mainprocess():
 					list_of_servers_lock.acquire()
 					try:
 						removeTheServer(crashed_slave)
+					except:
+						e = sys.exc_info()[0]
+						print("[Server update] Exception in slave down", e)
 					finally:
 						list_of_servers_lock.release()
 
@@ -714,6 +741,9 @@ def thread_mainprocess():
 								list_of_servers_lock.acquire()
 								try:
 									removeTheLeader()
+								except:
+									e = sys.exc_info()[0]
+									print("[Server update] Exception in voting", e)
 								finally:
 									list_of_servers_lock.release()
 
@@ -735,6 +765,9 @@ def thread_mainprocess():
 								global_lock.acquire()
 								try:
 									this_server.sending_messages_queue.append(voting_packet)
+								except:
+									e = sys.exc_info()[0]
+									print("[Server update] Exception in voting", e)
 								finally:
 									global_lock.release()
 									
@@ -753,6 +786,9 @@ def thread_mainprocess():
 									global_lock.acquire()
 									try:
 										this_server.sending_messages_queue.append(client_packet)
+									except:
+										e = sys.exc_info()[0]
+										print("[Server update] Exception in voting", e)
 									finally:
 										global_lock.release()
 
@@ -792,6 +828,9 @@ def thread_mainprocess():
 							list_of_servers_lock.acquire()
 							try:
 								removeTheLeader()
+							except:
+									e = sys.exc_info()[0]
+									print("[Server update] Exception in announce the leader", e)
 							finally:
 								list_of_servers_lock.release()
 
@@ -843,6 +882,9 @@ def thread_mainprocess():
 							list_of_servers_lock.acquire()
 							try:
 								list_of_servers.append(item_arr_server_obj)
+							except:
+								e = sys.exc_info()[0]
+								print("[Server update] Exception in list of existing servers", e)
 							finally:
 								list_of_servers_lock.release()
 						else:
@@ -933,6 +975,9 @@ def thread_mainprocess():
 							global_lock.acquire()
 							try:
 								this_server.sending_messages_queue.append(packet)
+							except:
+								e = sys.exc_info()[0]
+								print("[Server update] Exception in request missing message", e)
 							finally:
 								global_lock.release()
 
@@ -980,6 +1025,9 @@ def thread_mainprocess():
 					global_lock.acquire()
 					try:
 						this_server.sending_messages_queue.append(client_packet)
+					except:
+						e = sys.exc_info()[0]
+						print("[Server update] Exception in request missing message", e)
 					finally:
 						global_lock.release()
 					
@@ -1002,6 +1050,9 @@ def thread_mainprocess():
 					global_lock.acquire()
 					try:
 						this_server.sending_messages_queue.append(client_packet)
+					except:
+						e = sys.exc_info()[0]
+						print("[Server update] Exception in request missing message", e)
 					finally:
 						global_lock.release()
 
@@ -1036,6 +1087,9 @@ def thread_mainprocess():
 					global_lock.acquire()
 					try:
 						this_server.sending_messages_queue.append(client_packet)
+					except:
+						e = sys.exc_info()[0]
+						print("[Server update] Exception in request missing message", e)
 					finally:
 						global_lock.release()
 
@@ -1141,6 +1195,9 @@ def thread_mainprocess():
 							try:
 								this_server.sending_messages_queue.append(server_packet)
 								this_server.sending_messages_queue.append(client_packet)
+							except:
+								e = sys.exc_info()[0]
+								print("[Server update] Exception in normal chat", e)
 							finally:
 								global_lock.release()
 				
@@ -1155,6 +1212,9 @@ def thread_mainprocess():
 					global_lock.acquire()
 					try:
 						this_server.sending_messages_queue.append(client_packet)
+					except:
+						e = sys.exc_info()[0]
+						print("[Server update] Exception in normal chat", e)
 					finally:
 						global_lock.release()
 					
@@ -1179,16 +1239,20 @@ def thread_sending_message():
 						#print "Servers", [server.port for server in list_of_servers]
 						#print "Receivers", [server.port for server in packet.list_of_receivers]
 					else:
-						unicastMessage(packet.message_id, packet.message_type, packet.message_content, packet.sendingDateTime, packet.metadata)
-						this_server.sending_messages_queue.remove(packet)
+						if (packet.metadata == MessageType.CLIENTANNOUNCEMENTSERVERDOWN):
+							multicastMessageToServers(packet.message_id, packet.message_type, packet.message_content, packet.sendingDateTime)
+							this_server.sending_messages_queue.remove(packet)
+						else:
+							unicastMessage(packet.message_id, packet.message_type, packet.message_content, packet.sendingDateTime, packet.metadata)
+							this_server.sending_messages_queue.remove(packet)
 
 				if (packet.sender_type == SenderType.CLIENT):
 					multicastMessagetoClients(packet.metadata, packet.message_type, packet.sendingDateTime)
 					this_server.sending_messages_queue.remove(packet)
 
 		except:
-			# print("exception")
 			e = sys.exc_info()[0]
+			print("[Server update] Exception in thread_checkservers", e)
 		finally:
 			global_lock.release()
 		
@@ -1273,6 +1337,9 @@ def thread_check_each_server(port,istheleader):
 								list_of_servers_lock.acquire()
 								try:
 									removeTheServer(last_check_server.port)
+								except:
+									e = sys.exc_info()[0]
+									print("[Server update] Exception in thread_check_each_server", e)
 								finally:
 									list_of_servers_lock.release()
 
@@ -1292,6 +1359,9 @@ def thread_check_each_server(port,istheleader):
 								try:
 									this_server.sending_messages_queue.append(voting_packet)
 									this_server.sending_messages_queue.append(client_packet)
+								except:
+									e = sys.exc_info()[0]
+									print("[Server update] Exception in thread_check_each_server", e)
 								finally:
 									global_lock.release()
 
@@ -1311,7 +1381,9 @@ def thread_check_each_server(port,istheleader):
 def send_notification_totheclientsofcrashedpotentialleader():
 	global list_of_crashed_potential_servers, sent_message_id
 	#send multicast message to all clients of the corresponding crashed potential leaders
+	# print("send_notification_totheclientsofcrashedpotentialleader", len(list_of_crashed_potential_servers))
 	for potential_leader in list_of_crashed_potential_servers:
+		# print(potential_leader)
 		#send multicast message to all clients of the corresponding crashed leader
 		client_packet = DataPacketModel(getCurrentServerDateTime())
 		sent_message_id += 2
@@ -1335,6 +1407,9 @@ def launchElection(port,leaderstatus):
 			list_of_servers_lock.acquire()
 			try:
 				removeTheLeader()
+			except:
+				e = sys.exc_info()[0]
+				print("[Server update] Exception in launch election", e)
 			finally:
 				list_of_servers_lock.release()
 
@@ -1355,6 +1430,9 @@ def launchElection(port,leaderstatus):
 			global_lock.acquire()
 			try:
 				this_server.sending_messages_queue.append(voting_packet)
+			except:
+				e = sys.exc_info()[0]
+				print("[Server update] Exception in launch election", e)
 			finally:
 				global_lock.release()
 			#set global status to running
@@ -1371,6 +1449,9 @@ def launchElection(port,leaderstatus):
 				global_lock.acquire()
 				try:
 					this_server.sending_messages_queue.append(client_packet)
+				except:
+					e = sys.exc_info()[0]
+					print("[Server update] Exception in launch election", e)
 				finally:
 					global_lock.release()
 
@@ -1394,6 +1475,9 @@ def launchElection(port,leaderstatus):
 			global_lock.acquire()
 			try:
 				this_server.sending_messages_queue.append(voting_packet)
+			except:
+				e = sys.exc_info()[0]
+				print("[Server update] Exception in launch election", e)
 			finally:
 				global_lock.release()
 
@@ -1421,6 +1505,9 @@ def launchElection(port,leaderstatus):
 								list_of_servers_lock.acquire()
 								try:
 									removeTheServer(server.port)
+								except:
+									e = sys.exc_info()[0]
+									print("[Server update] Exception in launch election", e)
 								finally:
 									list_of_servers_lock.release()
 
@@ -1438,6 +1525,9 @@ def launchElection(port,leaderstatus):
 									try:
 										this_server.sending_messages_queue.append(voting_packet)
 										print("[Server update] server %s is going down. The multicast message has been sent to the other servers"%(str(server.port)))
+									except:
+										e = sys.exc_info()[0]
+										print("[Server update] Exception in launch election", e)
 									finally:
 										global_lock.release()
 
@@ -1467,6 +1557,9 @@ def thread_check_missing_packets():
 			#don't check unicasted messages (negative IDs), ServerUP (0) and acknowledgements (odd ids)
 			if packet.message_id > 0 and packet.message_id%2 == 0:
 				packets_to_be_checked.append(packet)
+	except:
+		e = sys.exc_info()[0]
+		print("[Server update] Exception in missing packets", e)
 	finally:
 		received_msg_lock.release()
 			
