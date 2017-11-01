@@ -1236,7 +1236,7 @@ def thread_checkeachserver(port,istheleader):
 
 
 def send_notification_totheclientsofcrashedpotentialleader():
-	global list_of_crashed_potential_servers
+	global list_of_crashed_potential_servers,sent_message_id
 	#send multicast message to all clients of the corresponding crashed potential leaders
 	for potential_leader in list_of_crashed_potential_servers:
 		#send multicast message to all clients of the corresponding crashed leader
