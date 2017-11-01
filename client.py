@@ -113,14 +113,14 @@ def secondprocess():
 						temp_current_server_port = int(arr_contents[0])
 						new_server_port = int(arr_contents[1])
 						#print("I got message from server. Server ",temp_current_server_port," crashed. The replacement would be server: ",new_server_port)
-						sys.stdout.write('[Me:] '); sys.stdout.flush()
+						# sys.stdout.write('[Me:] '); sys.stdout.flush()
 
 						if (temp_current_server_port == server_address[1]):
 							tem_lst_server_address = list(server_address)
 							tem_lst_server_address[1] = new_server_port
 							server_address = tuple(tem_lst_server_address)
-							#print("====================== Reconnecting to the new server===============================")
-							#print("Now, connected to server", server_address[1])
+							print("====================== Reconnecting to the new server===============================")
+							print("Now, connected to server", server_address[1])
 							sys.stdout.write('[Me:] '); sys.stdout.flush()
 
 t1 = Thread(target= main_process, args=())

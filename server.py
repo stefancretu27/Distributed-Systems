@@ -30,6 +30,8 @@ from GlobalInfo import GlobalInfo
 list_of_servers = list()
 #store all connected clients in a list = client group view	
 list_of_clients = list()
+#store all crashed potential servers
+list_of_crashed_potential_servers = list()
 
 def compareOrderedLists(l1, l2):
 	return l1==l2
@@ -169,7 +171,7 @@ def removeTheLeader():
 			if server.port == global_info.getCurrentLeader():
 				# leader_port = server.port
 				del list_of_servers[i]
-				removeDeadServerFromPacketsListOfReceivers(leader_port)
+				removeDeadServerFromPacketsListOfReceivers(server.port)
 				break
 				
 		# if (leader_port is not None):
@@ -593,6 +595,8 @@ def thread_mainprocess():
 						else:
 							#update server adrress of clients of the previous leader
 							updateClientsOfCrashedServer(global_info.getCurrentLeader(),theleaderport)
+							#update the server address of clients whose server address do not exist
+							updateClientsOfCrashedServer(MessageContent.SERVERDOESNOTEXIST, theleaderport)
 							removeTheLeader()
 
 						#if it's my port, then set I am the leader
@@ -632,24 +636,23 @@ def thread_mainprocess():
 				if ((global_info.getServerStatus() in [MessageType.RUNNING, MessageType.VOTING]) and packet.message_type == MessageType.SLAVEDOWN):
 					print("[Server update] I got message from %s with message type %s and the content is %s"%(str(packet.sender_id), packet.message_type, packet.message_content))
 					#update the server adrress of clients whose their server crashed with the id of the sender (the leader)
+					crashed_slave = int(packet.message_content)
 
 					if (isTheLeaderAlive()):
 						#update clients of crashed server
 						updateClientsOfCrashedServer(int(packet.message_content),getTheLeader().port)
+						#update the server address of clients whose server address do not exist
+						updateClientsOfCrashedServer(MessageContent.SERVERDOESNOTEXIST, getTheLeader().port)
+
+					if (global_info.getServerStatus() == MessageType.VOTING):
+						#clients of the crashed slave will be updated with no server (-999)
+						updateClientsOfCrashedServer(crashed_slave, MessageContent.SERVERDOESNOTEXIST)
 
 					#update group view
-					removeTheServer(int(packet.message_content))
+					removeTheServer(crashed_slave)
 
 					print("[Server update] I have updated my server list.")
 					showConnectedServers()
-
-					#if the current status is voting and someone notifies that the slave down
-					# if (global_info.getServerStatus() == MessageType.VOTING):
-					# 	#check whether the leader is alive or not
-					# 	if (isTheLeaderAlive() == False):
-					# 		print("Launching election because the leader died and the potential leader died as well")
-					# 		launchElection(global_info.getCurrentLeader(), MessageContent.SERVERCRASH)
-
 
 				#if voting is launched and my status is running
 				if ((global_info.getServerStatus() in [MessageType.RUNNING, MessageType.SERVERUP,MessageType.VOTING]) and packet.message_type == MessageType.VOTING):
@@ -726,6 +729,8 @@ def thread_mainprocess():
 						if (theleader.port != global_info.getCurrentLeader()):
 							#update clients of crashed server with my port
 							updateClientsOfCrashedServer(global_info.getCurrentLeader(), theleader.port)
+							#update the server address of clients whose server address do not exist
+							updateClientsOfCrashedServer(MessageContent.SERVERDOESNOTEXIST, theleader.port)
 							#remove the previous leader
 							removeTheLeader()
 
@@ -1159,59 +1164,59 @@ def thread_checkeachserver(port,istheleader):
 			first_datetimesendingmessage = existing_server.getLastSendingMessageDateTime()
 			first_delta = (MessageUtil.convertStringToDateTime(getCurrentServerDateTime()) - first_datetimesendingmessage).total_seconds()
 
-		#compare delta value with its maximum
-		if (first_delta > ConstantValues.DELTAMAX):
-			#wait for 20 seconds
-			sleep(20)
-			#get the second delta of existing server
-			temp_server  = getExisitngServerByPort(port)
-			if temp_server is not None:
-				second_datetimesendingmessage = temp_server.getLastSendingMessageDateTime()
-				second_delta = (MessageUtil.convertStringToDateTime(getCurrentServerDateTime()) - second_datetimesendingmessage).total_seconds()
-				print("[Server update] Checking server status %s, second delta:%s"%(str(port),str(second_delta)))
+			#compare delta value with its maximum
+			if (first_delta > ConstantValues.DELTAMAX):
+				#wait for 20 seconds
+				sleep(20)
+				#get the second delta of existing server
+				temp_server  = getExisitngServerByPort(port)
+				if temp_server is not None:
+					second_datetimesendingmessage = temp_server.getLastSendingMessageDateTime()
+					second_delta = (MessageUtil.convertStringToDateTime(getCurrentServerDateTime()) - second_datetimesendingmessage).total_seconds()
+					print("[Server update] Checking server status %s, second delta:%s"%(str(port),str(second_delta)))
 
-				#again, compare delta value with its maximum threshold
-				if (second_delta > ConstantValues.DELTAMAX):
-					#get the existing server
-					last_check_server = getExisitngServerByPort(port)
+					#again, compare delta value with its maximum threshold
+					if (second_delta > ConstantValues.DELTAMAX):
+						#get the existing server
+						last_check_server = getExisitngServerByPort(port)
 
-					if (last_check_server is not None):
-						print "2", port, last_check_server.port
-						if(istheleader):
-							print("[Server update] I am checking the leader")
-							#launch leader election
-							launchElection(last_check_server.port, MessageContent.SERVERCRASH)
+						if (last_check_server is not None):
+							print "2", port, last_check_server.port
+							if(istheleader):
+								print("[Server update] I am checking the leader")
+								#launch leader election
+								launchElection(last_check_server.port, MessageContent.SERVERCRASH)
 
-						else:
-							#inform servers in multicast group that someone crash
-							print("[Server update] I am checking the slaves")
-							#leader removes the corresponding server from group view
-							list_of_servers_lock.acquire()
-							removeTheServer(last_check_server.port)
-							list_of_servers_lock.release()
+							else:
+								#inform servers in multicast group that someone crash
+								print("[Server update] I am checking the slaves")
+								#leader removes the corresponding server from group view
+								# list_of_servers_lock.acquire()
+								removeTheServer(last_check_server.port)
+								# list_of_servers_lock.release()
 
-							#send multicast message to all other servers
-							voting_packet = DataPacketModel(getCurrentServerDateTime())
-							sent_message_id += 2
-							temp_msg_content = str(last_check_server.port)
-							voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.SLAVEDOWN, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
+								#send multicast message to all other servers
+								voting_packet = DataPacketModel(getCurrentServerDateTime())
+								sent_message_id += 2
+								temp_msg_content = str(last_check_server.port)
+								voting_packet.buildPacket("voting", SenderType.SERVER, sent_message_id, MessageType.SLAVEDOWN, temp_msg_content, voting_packet.receivedDateTime, this_server.port)
 
-							#send multicast message to all clients of the corresponding crashed server
-							client_packet = DataPacketModel(getCurrentServerDateTime())
-							sent_message_id += 2
-							client_packet.buildPacket(MessageType.CLIENTANNOUNCEMENTSERVERDOWN, SenderType.SERVER, sent_message_id, MessageType.CLIENTANNOUNCEMENTSERVERDOWN, str(existing_server.port)+"#"+str(this_server.port), \
-								client_packet.receivedDateTime, this_server.port)
+								#send multicast message to all clients of the corresponding crashed server
+								client_packet = DataPacketModel(getCurrentServerDateTime())
+								sent_message_id += 2
+								client_packet.buildPacket(MessageType.CLIENTANNOUNCEMENTSERVERDOWN, SenderType.SERVER, sent_message_id, MessageType.CLIENTANNOUNCEMENTSERVERDOWN, str(existing_server.port)+"#"+str(this_server.port), \
+									client_packet.receivedDateTime, this_server.port)
 
-							global_lock.acquire()
-							this_server.sending_messages_queue.append(voting_packet)
-							this_server.sending_messages_queue.append(client_packet)
-							global_lock.release()
+								global_lock.acquire()
+								this_server.sending_messages_queue.append(voting_packet)
+								this_server.sending_messages_queue.append(client_packet)
+								global_lock.release()
 
-							#update clients of crashed server
-							updateClientsOfCrashedServer(last_check_server.port, this_server.port)
+								#update clients of crashed server
+								updateClientsOfCrashedServer(last_check_server.port, this_server.port)
 
-							print("[Server update] server %s went down. The multicast message has been sent to the other servers to let them know which one crashed."%(str(port)))
-							showConnectedServers()
+								print("[Server update] server %s went down. The multicast message has been sent to the other servers to let them know which one crashed."%(str(port)))
+								showConnectedServers()
 	except:
 		exc_info = sys.exc_info()
 		print("[Server update] Exception in thread_checkeachserver. Do not worry, it's going to be fine :)")
@@ -1219,12 +1224,8 @@ def thread_checkeachserver(port,istheleader):
 
 #method to launch an election
 def launchElection(port,leaderstatus):
-	global sent_message_id, global_lock 
+	global sent_message_id, global_lock,list_of_crashed_potential_servers
 	try:
-
-
-
-
 		if (leaderstatus == MessageContent.SERVERCRASH):
 			print("[Server update] The leader %s crashed. Voting will be relaunched."%(str(port)))
 			#remove the previous leader
@@ -1253,7 +1254,7 @@ def launchElection(port,leaderstatus):
 
 
 			if (leaderstatus == MessageContent.SERVERCRASH):
-				#send multicast message to all clients of the corresponding crashed server
+				#send multicast message to all clients of the corresponding crashed leader
 				client_packet = DataPacketModel(getCurrentServerDateTime())
 				sent_message_id += 2
 				client_packet.buildPacket(MessageType.CLIENTANNOUNCEMENTSERVERDOWN, SenderType.SERVER, sent_message_id, MessageType.CLIENTANNOUNCEMENTSERVERDOWN, str(port)+"#"+str(this_server.port), \
@@ -1262,9 +1263,24 @@ def launchElection(port,leaderstatus):
 				this_server.sending_messages_queue.append(client_packet)
 				global_lock.release()
 
+				#send multicast message to all clients of the corresponding crashed potential leaders
+				for potential_leader in list_of_crashed_potential_servers:
+					#send multicast message to all clients of the corresponding crashed leader
+					client_packet = DataPacketModel(getCurrentServerDateTime())
+					sent_message_id += 2
+					client_packet.buildPacket(MessageType.CLIENTANNOUNCEMENTSERVERDOWN, SenderType.SERVER, sent_message_id, MessageType.CLIENTANNOUNCEMENTSERVERDOWN, str(potential_leader)+"#"+str(this_server.port), \
+						client_packet.receivedDateTime, this_server.port)
+					global_lock.acquire()
+					this_server.sending_messages_queue.append(client_packet)
+					global_lock.release()
+
+				#empty the list of crashed potential server
+				list_of_crashed_potential_servers = []
+
 				#update clients of crashed server with my port
 				updateClientsOfCrashedServer(port, this_server.port)
-
+				#update the server address of clients of the corresponding crashed leader
+				updateClientsOfCrashedServer(MessageContent.SERVERDOESNOTEXIST, this_server.port)
 
 		#otherwise, launch election
 		else:
@@ -1297,8 +1313,13 @@ def launchElection(port,leaderstatus):
 							server_delta = (MessageUtil.convertStringToDateTime(getCurrentServerDateTime()) - server_datetimesendingmessage).total_seconds()
 							#if server delta greater than maximum treshold
 							if (server_delta > ConstantValues.DELTAMAX):
+								#store crashed potential server into a list
+								list_of_crashed_potential_servers.append(server.port)
 								#remove the corresponding server
 								removeTheServer(server.port)
+
+								#clients of the crashed server will be updated with no server (-999)
+								updateClientsOfCrashedServer(server.port, MessageContent.SERVERDOESNOTEXIST)
 
 								#send multicast message to all other servers
 								voting_packet = DataPacketModel(getCurrentServerDateTime())
@@ -1320,13 +1341,6 @@ def launchElection(port,leaderstatus):
 									launchElection(global_info.getCurrentLeader(), MessageContent.SERVERCRASH)
 
 								break
-
-						#		sleep(10)
-						#	else:
-								#launchElection(global_info.getCurrentLeader(), MessageContent.SERVERCRASH)
-						#		sleep(10)
-						#else:
-						#	break
 			showConnectedServers()
 	except:
 		print("[Server update] Do not worry, it is going to be fine")

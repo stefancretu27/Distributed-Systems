@@ -12,7 +12,7 @@ MessageType = enum(JOINROOM='joinroom', ANNOUNCELEADER='announceleader', ACKNOWL
 					LISTOFCLIENTSUPDATED='listofclientsupdated', REQUESTLISTOFCLIENTS='requestlistofclients', CLIENTREJOIN = 'clientrejoin', \
 					CLIENTANNOUNCEMENTSERVERDOWN='clientannouncementserverdown', REQUESTMISSINGMESSAGE = 'requestmissingmessage')
 SenderType = enum(CLIENT='client', SERVER='server')
-MessageContent = enum(QUIT='~q',SERVERALIVE='0',SERVERCRASH='1',NONE='none')
+MessageContent = enum(QUIT='~q',SERVERALIVE='0',SERVERCRASH='1',NONE='none',SERVERDOESNOTEXIST=-9999)
 ConstantValues = enum(DELTAMAX=30)
 KnownMessageID = enum(ServerUp = 0, ClientMsg = -1, HeartBeat = -2, RequestListofServers = -3, AckToNewServer = -4, ServerBusy = -5, SendListofServers = -6, AnnounceLeader = -7, \
 						SendListOfClient = -8, RequestListofClients = -9, RequestMissingMessage = 10)
