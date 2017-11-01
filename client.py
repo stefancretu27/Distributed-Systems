@@ -36,7 +36,7 @@ client_socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
 #send connection message to the server
 client_socket.sendto(MessageUtil.constructMessage(None, SenderType.CLIENT, -1, MessageType.JOINROOM, 'new_client', str(getCurrentDateTime())), server_address)
 
-print ("------------ Client is currently connected to server %s -------------"%(str(current_server_port)))
+print ("------------ Client is currently connecting to server %s -------------"%(str(current_server_port)))
 
 sys.stdout.write('[Me:] '); sys.stdout.flush()
 
@@ -55,7 +55,7 @@ def main_process():
 			if socket == sys.stdin:
 				#send message to server. Even if #q is typed, firstly inform the server
 				try:
-					sys.stdout.write("I sent message to server %s\n"%(str(server_address[1])))
+					#sys.stdout.write("I sent message to server %s\n"%(str(server_address[1])))
 					client_message = sys.stdin.readline()
 					if client_message:
 						if (client_message.strip() == MessageContent.QUIT):

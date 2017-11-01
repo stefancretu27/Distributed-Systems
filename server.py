@@ -216,7 +216,7 @@ def disconnectClient(this_client):
 def showConnectedClients():
 	if list_of_clients:
 		for client in list_of_clients:
-			print ("client adrress: ",(client.address), "server adrress:",client.server_address)
+			print ("client address: ",(client.address), "server address:",client.server_address)
 	else:
 		print ('[Client update] Currently, no clients are connected in the system')
 #search if a client is connected
@@ -636,7 +636,7 @@ def thread_mainprocess():
 							finally:
 								list_of_servers_lock.release()
 						else:
-							#update server adrress of clients of the previous leader
+							#update server address of clients of the previous leader
 							updateClientsOfCrashedServer(global_info.getCurrentLeader(),theleaderport)
 							#update the server address of clients whose server address do not exist
 							updateClientsOfCrashedServer(MessageContent.SERVERDOESNOTEXIST, theleaderport)
@@ -693,7 +693,7 @@ def thread_mainprocess():
 				#if slave goes down and my status is running
 				if ((global_info.getServerStatus() in [MessageType.RUNNING, MessageType.VOTING]) and packet.message_type == MessageType.SLAVEDOWN):
 					print("[Server update] I got message from %s with message type %s and the content is %s"%(str(packet.sender_id), packet.message_type, packet.message_content))
-					#update the server adrress of clients whose their server crashed with the id of the sender (the leader)
+					#update the server address of clients whose their server crashed with the id of the sender (the leader)
 					crashed_slave = int(packet.message_content)
 
 					if (isTheLeaderAlive()):
@@ -912,7 +912,6 @@ def thread_mainprocess():
 					#if the content is not blank
 					if (packet.message_content != ""):
 						arr_existing_clients = packet.message_content.split(";")
-						print("length of array", len(arr_existing_clients))
 						for item_arr in arr_existing_clients:
 							item_clients_arr = item_arr.split("#")
 							item_client_ip = item_clients_arr[0]
@@ -1531,6 +1530,9 @@ def launchElection(port,leaderstatus):
 									finally:
 										global_lock.release()
 
+								print("[Server update] Currently connected servers are:")
+								showConnectedServers()
+
 								#Then re-launch the election
 								sleep(5)
 								if (global_info.getServerStatus() == MessageType.VOTING and isTheLeaderAlive() == False):
@@ -1538,8 +1540,7 @@ def launchElection(port,leaderstatus):
 									launchElection(global_info.getCurrentLeader(), MessageContent.SERVERCRASH)
 
 								break
-
-			showConnectedServers()
+						
 	except:
 		print("[Server update] Do not worry, it is going to be fine")
 
