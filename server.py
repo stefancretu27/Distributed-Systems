@@ -647,6 +647,8 @@ def thread_mainprocess():
 					if (global_info.getServerStatus() == MessageType.VOTING):
 						#clients of the crashed slave will be updated with no server (-999)
 						updateClientsOfCrashedServer(crashed_slave, MessageContent.SERVERDOESNOTEXIST)
+						if (crashed_slave not in list_of_crashed_potential_servers):
+							list_of_crashed_potential_servers.append(crashed_slave)
 
 					#update group view
 					removeTheServer(crashed_slave)
@@ -705,8 +707,17 @@ def thread_mainprocess():
 									this_server.sending_messages_queue.append(client_packet)
 									global_lock.release()
 
+									#send multicast message to all clients of crashed potential leaders
+									send_notification_totheclientsofcrashedpotentialleader()
+
 									#update clients of crashed server with my port
 									updateClientsOfCrashedServer(theleaderport, this_server.port)
+									#update the server address of clients of the corresponding crashed leader
+									updateClientsOfCrashedServer(MessageContent.SERVERDOESNOTEXIST, this_server.port)
+
+									#send multicast message to all clients of crashed potential leaders
+									send_notification_totheclientsofcrashedpotentialleader()
+
 						else:
 							#get server by port
 							previousleader = getExisitngServerByPort(theleaderport)
@@ -1222,9 +1233,27 @@ def thread_checkeachserver(port,istheleader):
 		print("[Server update] Exception in thread_checkeachserver. Do not worry, it's going to be fine :)")
 		traceback.print_exception(*exc_info)
 
+
+
+def send_notification_totheclientsofcrashedpotentialleader():
+	global list_of_crashed_potential_servers
+	#send multicast message to all clients of the corresponding crashed potential leaders
+	for potential_leader in list_of_crashed_potential_servers:
+		#send multicast message to all clients of the corresponding crashed leader
+		client_packet = DataPacketModel(getCurrentServerDateTime())
+		sent_message_id += 2
+		client_packet.buildPacket(MessageType.CLIENTANNOUNCEMENTSERVERDOWN, SenderType.SERVER, sent_message_id, MessageType.CLIENTANNOUNCEMENTSERVERDOWN, str(potential_leader)+"#"+str(this_server.port), \
+			client_packet.receivedDateTime, this_server.port)
+		global_lock.acquire()
+		this_server.sending_messages_queue.append(client_packet)
+		global_lock.release()
+
+	#empty the list of crashed potential server
+	list_of_crashed_potential_servers = []
+
 #method to launch an election
 def launchElection(port,leaderstatus):
-	global sent_message_id, global_lock,list_of_crashed_potential_servers
+	global sent_message_id, global_lock
 	try:
 		if (leaderstatus == MessageContent.SERVERCRASH):
 			print("[Server update] The leader %s crashed. Voting will be relaunched."%(str(port)))
@@ -1263,19 +1292,8 @@ def launchElection(port,leaderstatus):
 				this_server.sending_messages_queue.append(client_packet)
 				global_lock.release()
 
-				#send multicast message to all clients of the corresponding crashed potential leaders
-				for potential_leader in list_of_crashed_potential_servers:
-					#send multicast message to all clients of the corresponding crashed leader
-					client_packet = DataPacketModel(getCurrentServerDateTime())
-					sent_message_id += 2
-					client_packet.buildPacket(MessageType.CLIENTANNOUNCEMENTSERVERDOWN, SenderType.SERVER, sent_message_id, MessageType.CLIENTANNOUNCEMENTSERVERDOWN, str(potential_leader)+"#"+str(this_server.port), \
-						client_packet.receivedDateTime, this_server.port)
-					global_lock.acquire()
-					this_server.sending_messages_queue.append(client_packet)
-					global_lock.release()
-
-				#empty the list of crashed potential server
-				list_of_crashed_potential_servers = []
+				#send multicast message to all clients of crashed potential leaders
+				send_notification_totheclientsofcrashedpotentialleader()
 
 				#update clients of crashed server with my port
 				updateClientsOfCrashedServer(port, this_server.port)
